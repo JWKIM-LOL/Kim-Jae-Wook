@@ -1,0 +1,374 @@
+---
+title: ""
+subtitle: ""
+author: ""
+title-block-style: none
+
+format:
+  pdf:
+    pdf-engine: lualatex
+    mainfont: "Times New Roman"
+    titlepage: false
+    geometry:
+      - top=2.2cm
+    include-in-header:
+      text: |
+        \usepackage{fontspec,graphicx}
+        \usepackage{setspace}    % увеличение межстрочного расстояния везде, включая код
+        \setstretch{1}         %  (можно поставить 1.2 или 1.6)
+        
+        \usepackage{xcolor}
+        \definecolor{pleft}{rgb}{0.18, 0.42, 0.69} % синий цвет Python
+        \definecolor{pright}{rgb}{1.0, 0.83, 0.0}  % жёлтый цвет Python
+        \definecolor{darkcyan}{rgb}{0, 0.55, 0.75} % тёмно-голубой цвет
+        \definecolor{navy}{rgb}{0.0, 0.0, 0.5}     % тёмно-синий цвет
+        \definecolor{ForestGreen}{rgb}{0.13, 0.55, 0.13}
+        \usepackage{fontspec,graphicx}
+        \usepackage{luatexko} % пакет поддержки корейского языка
+        
+        \usepackage{fontspec,graphicx}
+        \setmainfont{Times New Roman}[Ligatures=TeX]
+        \setsansfont{Times New Roman}[Ligatures=TeX]
+        \setmonofont{Times New Roman}
+        
+        % настройка корейского шрифта, можно заменить на имя шрифта, установленного в macOS
+        % например, стандартный корейский шрифт Apple
+        \setmainhangulfont{Apple SD Gothic Neo}
+        \setsanshangulfont{Apple SD Gothic Neo}
+        \setmonohangulfont{Apple SD Gothic Neo}
+
+        \newcommand{\TitleStyle}{\fontsize{46pt}{54pt}\selectfont\bfseries}
+        \newcommand{\SubtitleStyle}{\fontsize{24pt}{30pt}\selectfont}
+        \newcommand{\AffilStyle}{\fontsize{25pt}{26pt}\selectfont}
+        \newcommand{\NameStyle}{\fontsize{33pt}{34pt}\selectfont\bfseries}
+
+        \newcommand{\TopPullUp}{-1.0em}
+        \newcommand{\TitleSubtitleSep}{12pt}
+        \newcommand{\SubtitleImageSep}{33pt}
+        \newcommand{\ImageAffilSep}{33pt}
+        \newcommand{\AffilLineSep}{10pt}
+
+    include-before-body:
+      text: |
+        % на титульной странице номер страницы скрыт
+        \pagenumbering{gobble}
+
+        \begin{titlepage}
+        \thispagestyle{empty}
+        \centering
+        \vspace*{\TopPullUp}
+
+        {\TitleStyle ML / DL  :  PBL 01\par}
+        \vspace{\TitleSubtitleSep}
+        {\SubtitleStyle \fontsize{19pt}{22.8pt}\selectfont « Подготовка данных и разведочный разбор данных о диагностике диабета »\par}
+
+        \vspace{\SubtitleImageSep}
+        \begin{center}
+          \includegraphics[width=0.62\textwidth]{Python_Logo.png}
+        \end{center}
+
+        \vspace{\ImageAffilSep}
+        {\AffilStyle SK Shieldus\par}
+        \vspace{\AffilLineSep}
+        {\AffilStyle Rookies, 30-й набор \  (личный номер 14)\par}
+        \vspace{\AffilLineSep}
+        {\NameStyle Ким Джэ-Ук\par}
+
+        \vfill
+        \end{titlepage}
+
+        % с основного текста нумерация страниц начинается с 1
+        \clearpage
+        \pagenumbering{arabic}
+
+# для ссылок на источники -> bibliography: references.bib
+bibliography: references.bib
+csl: ieee.csl
+nocite: '@*'
+link-citations: true
+
+ipynb: true
+
+jupyter: python3
+toc: false
+# toc-depth: 2
+
+execute:   
+  echo: true
+  warning: false
+  message: false
+freeze: auto
+---
+
+\pagebreak
+
+\begin{center}
+{\Huge \textcolor{red}{Решение PBL 01}}
+\end{center}
+
+```{python}
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+
+# загружаем данные
+data = pd.read_csv("20260109_142630_diabetes.csv")
+print(f"Общее число наблюдений в данных {len(data)}")
+print("-" * 55)
+
+# до обработки считаем нули в тех столбцах,
+# где ноль надо понимать как пропуск
+# - 1 - пять столбцов, которые нас занимают прежде всего
+missing_zero_features = ["Glucose", "BloodPressure", "SkinThickness",
+                         "Insulin", "BMI"]
+zero_counts_before = data[missing_zero_features].eq(0).sum()
+print("Число нулей, считаемых пропусками, в этих пяти столбцах\n",
+      zero_counts_before)
+print("-" * 55)
+
+# - 2 - проверяем пропуски в остальных столбцах, и вместе с - 1 -
+# это даёт число пропусков сразу по всем столбцам
+other_cols = data.columns.difference(missing_zero_features)
+zero_counts_other = data[other_cols].eq(0).sum()
+print("Число нулей в остальных столбцах\n", zero_counts_other)
+print("-" * 55)
+
+# а вдруг пропуск записан не нулём, а иначе, то есть NaN или None,
+# эта мысль появилась благодаря вопросу учащегося Син Вон Сопа
+has_other_missing = data.isnull().any().any()
+print("Есть ли пропуски не в виде нуля, то есть NaN или None ",
+      has_other_missing)
+```
+
+\pagebreak
+
+```{python}
+# нужен, чтобы показывать таблицы в виде HTML
+from IPython.display import HTML
+# так сделано потому, что по опыту обычные таблицы, которые
+# Quarto выводит в PDF, читаются очень плохо
+```
+
+```{python}
+# заменяем нули на NaN, а затем ставим вместо них среднее
+# внимание, по условию задания это делается только для тех
+# пяти столбцов, о которых сказано в - 1 -
+for feat in missing_zero_features:
+    data[feat] = data[feat].replace(0, np.nan)
+
+# считаем число NaN в этих пяти столбцах
+missing_counts_after_zero_to_nan = data[missing_zero_features].isnull().sum()
+# меняем вид таблицы, чтобы вывести её как HTML
+missing_counts_after_zero_to_nan = (
+    missing_counts_after_zero_to_nan
+        # переносим индекс в обычный столбец
+        .reset_index()
+        # приводим названия столбцов в порядок
+        .rename(columns={"index": "Column", 0: "Число NaN"})
+)
+# выводим таблицу в виде HTML вместе с рамкой
+HTML(missing_counts_after_zero_to_nan.to_html(index=False, border=1))
+```
+
+```{python}
+for feat in missing_zero_features:
+    # ставим вместо пропусков среднее значение столбца
+    data[feat] = data[feat].fillna(data[feat].mean())
+
+# работа с выбросами, значения выше верхнего одного процента
+# считаем ненормальными и заменяем их средним
+# столбцы, в которых убираем выбросы
+outlier_features = ["SkinThickness", "Insulin"]
+# перебираем каждый такой столбец
+for feature in outlier_features:
+    # находим границу верхнего одного процента
+    upper_percentile_99 = data[feature].quantile(0.99)
+    # значения до границы оставляем как есть,
+    # а всё, что выше границы, превращаем в NaN
+    data[feature] = data[feature].where(data[feature] <= upper_percentile_99,
+                                        np.nan)
+    # ставим вместо этих NaN среднее значение
+    data[feature] = data[feature].fillna(data[feature].mean())
+
+# приводим к промежутку от 0 до 1 только столбец Age,
+# потому что по условию задания это нужно лишь для Age
+scaler = MinMaxScaler()
+data[["Age"]] = scaler.fit_transform(data[["Age"]])
+
+# проверяем, остались ли пропуски после обработки, ведь в исходных
+# данных NaN не было, они появились после замены нулей,
+# а затем были заполнены средним
+missing_after = data.isnull().sum()
+# меняем вид таблицы, чтобы вывести её как HTML
+missing_after = (
+    missing_after
+        # переносим индекс в обычный столбец
+        .reset_index()
+        # приводим названия столбцов в порядок
+        .rename(columns={"index": "Column", 0: "Число NaN"}))
+HTML(missing_after.to_html(index=False, border=1))  
+```
+
+
+```{python}
+# сравниваем среднее значение Glucose по группам Outcome
+glucose_mean_by_outcome = (
+    # группируем по Outcome и берём столбец Glucose
+    data.groupby("Outcome")["Glucose"]
+        # считаем среднее в каждой группе
+        .mean()
+        # превращаем результат обратно в таблицу
+        .reset_index()
+        # даём столбцу более понятное название
+        .rename(columns={"Glucose": "Среднее Glucose"})
+)
+
+HTML(glucose_mean_by_outcome.to_html(index=False, border=1))      
+```
+
+
+```{python}
+# смотрим часть итогового результата обработки
+# сокращаем название столбца, потому что иначе таблица обрезается
+# или переносится на новую строку и читать её становится неудобно
+data = data.rename(columns={"DiabetesPedigreeFunction": "DPF"})
+# берём первые пять строк готовых данных и убираем прежний индекс
+summary = data.head().reset_index(drop=True)
+HTML(summary.to_html(index=False, border=1))
+```
+
+\begin{center}
+  \textbf{\textcolor{purple}{В таблице выше DPF в седьмом столбце это сокращение от DiabetesPedigreeFunction. }}
+\end{center}
+
+
+\pagebreak
+
+\begin{center}
+{\huge \textcolor{red}{Толкование результатов}}
+\end{center}
+
+\vspace{0.5cm}
+
+\textbf{Если учитывать смысл задания, а именно « \textcolor{blue}{выполнить начальную подготовку данных и разведочный разбор на основе данных о диагностике диабета} », то приведённое ниже \textcolor{red}{толкование результатов} тоже оказывается осмысленным.}
+
+\vspace{0.5cm}
+
+(1) Прежде всего, до обработки была проверена картина по тем переменным, где \textbf{ноль понимается как пропуск (Glucose, BloodPressure, SkinThickness, Insulin, BMI)},
+и число таких нулей по каждой переменной оказалось следующим, а именно \textbf{Glucose 5, BloodPressure 35, SkinThickness 227, Insulin 374, BMI 11}.
+Особенно заметно, что \textbf{\textcolor{red}{у SkinThickness (227) и у Insulin (374) значений, считаемых пропусками, очень много}},
+причём \textbf{\textcolor{red}{у переменной Insulin нулём записаны 374 наблюдения из всех 768}}, 
+и по этим числам ясно видно, что \textbf{\underline{восполнение пропусков именно в этой переменной становится ключевым}}
+\textbf{\underline{шагом подготовки данных}}.
+Отсюда следует, что для этих данных \textbf{\underline{порядок работы,}}
+\textbf{\underline{при котором в пяти}}
+\textbf{\underline{указанных переменных ноль считают пропуском и заменяют}}
+\textbf{\underline{средним, совершенно необходим}} (то есть оставлять пропуски без внимания нельзя).
+
+\
+
+(2) Далее, после работы с пропусками (замена 0 $\rightarrow$ NaN и затем подстановка среднего) и после работы с выбросами (в переменных \textbf{SkinThickness, Insulin} значения выше верхнего одного процента переведены в NaN и заменены средним)
+к столбцу \textbf{Age было применено приведение к промежутку от 0 до 1 способом Min-Max}.
+Если посмотреть на результат подготовки, данные выводятся \textbf{\underline{в упорядоченном виде и уже без пропусков}},
+а в первых пяти строках готовых данных \textbf{видно, что значения Age приведены к промежутку от 0 до 1 (например, 0.483333, 0.166667 и подобные)}.
+Затем среднее значение Glucose было сопоставлено по группам Outcome, и оказалось, что
+\textbf{среднее Glucose при Outcome=0 равно 110.710121, а при Outcome=1 равно 142.165573}, то есть
+\textbf{\textcolor{red}{у группы Outcome=1 среднее значение Glucose заметно выше, чем у группы Outcome=0}}.
+Иначе говоря, с точки зрения начального разведочного разбора видна \textbf{\underline{склонность к более высокому уровню сахара в крови (Glucose) в группе с}}
+\textbf{\underline{поставленным диагнозом (Outcome=1)}},
+и это указывает на то, что Glucose может быть \textbf{\underline{одной из главных переменных, связанных с Outcome}}.
+
+\vspace{1cm}
+
+В целом описанная подготовка данных и сводные результаты имеют смысл потому, что \textbf{\textcolor{red}{для указанных переменных с большим числом нулей (Glucose, BloodPressure, SkinThickness, Insulin, BMI) были восполнены пропуски и убраны выбросы, для Age было выполнено приведение к промежутку от 0 до 1, а затем была проверена разница средних значений Glucose в зависимости от Outcome}}.
+Поэтому всё это может служить основанием, которое подтверждает разумность \textbf{\underline{простого, но полностью отвечающего условию задания порядка}} 
+\textbf{\underline{подготовки данных и разведочного разбора}} для работы с данными о диабете.
+
+
+\pagebreak
+
+\begin{center}
+    {\huge \textcolor{red}{Наблюдение о самом наборе данных}} \\
+
+    {\large \textbf{-прежде всего о большом числе пропусков у переменных SkinThickness и Insulin-}}
+\end{center}
+
+
+\begin{center}
+\textbf{« Но всё же ... \textcolor{blue}{если вернуться к пункту (1) толкования результатов, почему же (!) именно у SkinThickness и Insulin} \textcolor{red}{особенно} \textcolor{blue}{много пропусков ? } »} 
+\end{center}
+
+\vspace{0.2cm}
+
+\noindent\hspace*{25pt} Прежде всего, как причину того, что пропусков особенно много именно у SkinThickness и Insulin, можно выдвинуть \textbf{\textcolor{blue}{предположение, что при \underline{первичной постановке диагноза диабета} эти показатели считались менее важными, чем Glucose, то есть чем сахар в крови}}.
+А именно, в журнале, который Американская диабетическая ассоциация (American Diabetes Association) официально выпустила по поводу постановки диагноза диабета [@Sacks2011GuidelinesDR] Guidelines and Recommendations for Laboratory Analysis in the Diagnosis and Management of Diabetes Mellitus
+(если точнее, на странице c89 в разделе 2. Analytical considerations, в абзаце, который начинается со слов Measurements of), есть
+прямое указание, что уже (!) с 2011 года при OGTT ( = Oral Glucose Tolerance Test, то есть проба с сахарной нагрузкой ), одном из способов постановки диагноза, измерение инсулина не следует использовать для постановки диагноза диабета. "\textit{... insulin measurement should not be used in an OGTT to diagnose diabetes}"
+
+Однако при толковании важно помнить, что сказанное выше \underline{не означает, будто инсулин}}
+\textbf{\underline{не связан с диабетом}}.
+
+\noindent\hspace*{25pt} Если учитывать механизм самой болезни, такое толкование \textit{\textbf{не}} было бы разумным.
+
+
+\noindent\hspace*{25pt} И всё же, с точки зрения \textbf{\textcolor{red}{постановки диагноза}}, предположение, что измерение инсулина уступало по важности измерению сахара в крови, выглядит вполне разумным.
+Любопытно, что это не расходится с нашим повседневным опытом.
+Если говорить точнее, при сдаче крови в обычной районной поликлинике для первичной проверки на диабет обычно измеряют \textbf{\textcolor{red}{сахар натощак}},
+а инсулин (Insulin) не измеряют.
+Прошу обратить внимание на материалы об анализах крови на страницах 6 и 7.
+
+Но почему же то, что показатель уступал другим по важности, могло породить такое большое число пропусков?
+Посмотрим ещё раз спокойно на то, из чего состоят столбцы этих данных.
+
+\textbf{\textcolor{ForestGreen}{Pregnancies}} (число беременности ?) ,
+\textbf{\textcolor{ForestGreen}{Glucose}} (сахар в крови) ,
+\textbf{\textcolor{ForestGreen}{BloodPressure}} (давление) ,
+\textbf{\textcolor{ForestGreen}{SkinThickness}} (замер определённого места калипером) ,
+\textbf{\textcolor{ForestGreen}{Insulin}} (инсулин) ,
+\textbf{\textcolor{ForestGreen}{BMI}} ,
+\textbf{\textcolor{ForestGreen}{DiabetesPedigreeFunction}} (наличие болезни у родных) ,
+\textbf{\textcolor{ForestGreen}{Age}} (возраст)
+
+\noindent\hspace*{25pt} По сравнению с остальными показателями инсулин (Insulin) уступал по важности, а SkinThickness с точки зрения навыка того, кто проводит замер, и доступности медицинской помощи заметно хуже подходит
+для первичной проверки на диабет у большого числа людей. Поэтому весьма вероятно, что случаи, когда эти два замера просто пропускали,
+и отразились в данных как пропущенные значения.
+
+\vspace{0.4cm}
+
+Из сказанного выше можно заключить, что \textbf{\textcolor{purple}{предоставленные данные не оторваны от действительности, а наоборот, отражают её лучше и дают понимание того, как обстоят дела в настоящей медицинской практике}}.
+
+\vspace{1cm}
+
+※ При этих размышлениях сильно помогло занятие курса \textbf{\textit{\textcolor{brown}{Big Data and Machine Learning in Healthcare}}}, который завершился 20 декабря 2025 года, а именно третье занятие \textbf{\textit{Making Sense Of Data}} от 20 сентября того же года, где шло напряжённое обсуждение.
+Ссылку на сайт с использованными учебными материалами прилагаю как источник.
+
+\vspace{1cm}
+
+\noindent\hspace*{40pt}[@PianykhBigDataMLHealthcare] \hspace{0.5cm} [https://medicalanalytics.group/big-data-and-machine-learning-in-healthcare](https://medicalanalytics.group/big-data-and-machine-learning-in-healthcare)
+
+
+\pagebreak
+
+
+![Больница Святой Марии в Сеуле при Католическом университете, отделение крови (общий анализ крови)](CompleteBloodTest.png){fig-align="center"}
+
+\vspace{1cm}
+
+\begin{center}
+\textbf{\textcolor{navy}{Ни инсулина (Insulin), ни SkinThickness среди пунктов обследования нигде нет.}}
+\end{center}
+
+\pagebreak
+
+![Больница Святой Марии в Сеуле при Католическом университете, отделение крови (биохимический анализ)](BloodChemistry.png){fig-align="center"}
+
+
+\pagebreak
+
+Этот документ подготовлен в формате \textbf{\textcolor{navy}{Quarto Markdown}} (.qmd), который позволяет объединять код \textcolor{pleft}{\textbf{Pyt}}\textcolor{pright}{\textbf{hon}} и текст документа в одном файле, он написан в \textcolor{darkcyan}{\textbf{R Studio}} и выведен в формате PDF.
+
+\pagebreak
+
+\begin{center}
+  {\Huge \textbf{Использованные материалы}}
+\end{center}

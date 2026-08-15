@@ -1,0 +1,255 @@
+---
+title: ""
+subtitle: ""
+author: ""
+title-block-style: none
+
+format:
+  pdf:
+    pdf-engine: lualatex
+    mainfont: "Times New Roman"
+    titlepage: false
+    geometry:
+      - top=2.2cm
+    include-in-header:
+      text: |
+        \usepackage{xcolor}
+        \definecolor{pleft}{rgb}{0.18, 0.42, 0.69} % синий цвет Python
+        \definecolor{pright}{rgb}{1.0, 0.83, 0.0}  % жёлтый цвет Python
+        \definecolor{darkcyan}{rgb}{0, 0.55, 0.75} % тёмно-голубой цвет
+        \definecolor{navy}{rgb}{0.0, 0.0, 0.5}     % тёмно-синий цвет
+        \usepackage{fontspec,graphicx}
+        \usepackage{luatexko} % пакет поддержки корейского языка
+        
+        \usepackage{fontspec,graphicx}
+        \setmainfont{Times New Roman}[Ligatures=TeX]
+        \setsansfont{Times New Roman}[Ligatures=TeX]
+        \setmonofont{Times New Roman}
+        
+        % настройка корейского шрифта, можно заменить на имя шрифта, установленного в macOS
+        % например, стандартный корейский шрифт Apple
+        \setmainhangulfont{Apple SD Gothic Neo}
+        \setsanshangulfont{Apple SD Gothic Neo}
+        \setmonohangulfont{Apple SD Gothic Neo}
+
+        \newcommand{\TitleStyle}{\fontsize{46pt}{54pt}\selectfont\bfseries}
+        \newcommand{\SubtitleStyle}{\fontsize{24pt}{30pt}\selectfont}
+        \newcommand{\AffilStyle}{\fontsize{25pt}{26pt}\selectfont}
+        \newcommand{\NameStyle}{\fontsize{33pt}{34pt}\selectfont\bfseries}
+
+        \newcommand{\TopPullUp}{-1.0em}
+        \newcommand{\TitleSubtitleSep}{12pt}
+        \newcommand{\SubtitleImageSep}{33pt}
+        \newcommand{\ImageAffilSep}{33pt}
+        \newcommand{\AffilLineSep}{10pt}
+
+    include-before-body:
+      text: |
+        % на титульной странице номер страницы скрыт
+        \pagenumbering{gobble}
+
+        \begin{titlepage}
+        \thispagestyle{empty}
+        \centering
+        \vspace*{\TopPullUp}
+
+        {\TitleStyle Python PBL 04\par}
+        \vspace{\TitleSubtitleSep}
+        {\SubtitleStyle \fontsize{19pt}{22.8pt}\selectfont « Разбор продаж по месяцам на основе данных о продажах »\par}
+
+        \vspace{\SubtitleImageSep}
+        \begin{center}
+          \includegraphics[width=0.62\textwidth]{Python_Logo.png}
+        \end{center}
+
+        \vspace{\ImageAffilSep}
+        {\AffilStyle SK Shieldus\par}
+        \vspace{\AffilLineSep}
+        {\AffilStyle Rookies, 30-й набор \  (личный номер 14)\par}
+        \vspace{\AffilLineSep}
+        {\NameStyle Ким Джэ-Ук\par}
+
+        \vfill
+        \end{titlepage}
+
+        % с основного текста нумерация страниц начинается с 1
+        \clearpage
+        \pagenumbering{arabic}
+
+ipynb: true
+
+jupyter: python3
+toc: false
+# toc-depth: 2
+
+execute:
+  echo: true
+  warning: false
+  message: false
+freeze: auto
+---
+
+\pagebreak
+
+\begin{center}
+{\Huge \textcolor{red}{Решение PBL 04}}
+\end{center}
+
+```{python}
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+class SalesAnalysis:
+    def __init__(self):
+        # закрепляем случайные числа, чтобы при каждом запуске
+        # получался один и тот же результат
+        np.random.seed(777)
+        # создаём даты по дням за весь 2024 год
+        dates = pd.date_range("2024-01-01", "2024-12-31", freq="D")
+        # создаём случайные дневные продажи от 1000 до 9999
+        sales = np.random.randint(1000, 10000, len(dates))
+        # складываем даты и продажи в таблицу DataFrame
+        self._df = pd.DataFrame({"дата": dates, "продажи": sales})
+
+    def montly_sale_visualization(self):
+        # достаём из даты номер месяца от 1 до 12
+        self._df["месяц"] = self._df["дата"].dt.month
+        # считаем сумму продаж по каждому месяцу
+        monthly_sales = self._df.groupby("месяц")["продажи"].sum()
+
+        # шрифт с поддержкой кириллицы, чтобы буквы не пропадали
+        plt.rcParams["font.family"] = "DejaVu Sans"
+
+        # задаём размер рисунка
+        plt.figure(figsize=(15, 9))
+        # рисуем суммы по месяцам ломаной линией с точками
+        plt.plot(monthly_sales.index, monthly_sales.values, marker="o")
+
+        # считаем среднее значение продаж по месяцам
+        avg = monthly_sales.mean()
+        # показываем линию среднего пунктиром
+        plt.axhline(avg, linestyle="--")
+
+        # месяц с самыми большими продажами
+        max_m = int(monthly_sales.idxmax())
+        # месяц с самыми маленькими продажами
+        min_m = int(monthly_sales.idxmin())
+        # отмечаем точками месяц максимума и месяц минимума
+        plt.scatter([max_m, min_m],
+                    [monthly_sales.loc[max_m], monthly_sales.loc[min_m]])
+
+        plt.annotate(
+            # подпись для месяца с самыми большими продажами
+            f"Максимум, месяц {max_m}",
+            # координаты, к которым привязана подпись
+            (max_m, monthly_sales.loc[max_m]),
+            # сдвигаем текст немного выше точки
+            xytext=(0, 7),
+            textcoords="offset points",
+            ha="center",
+        )
+
+        plt.annotate(
+            # подпись для месяца с самыми маленькими продажами
+            f"Минимум, месяц {min_m}",
+            # координаты, к которым привязана подпись
+            (min_m, monthly_sales.loc[min_m]),
+            # сдвигаем текст немного ниже точки
+            xytext=(0, -10),
+            textcoords="offset points",
+            ha="center",
+        )
+
+        plt.title("Ход продаж по месяцам за 2024 год")
+        # подпись оси x
+        plt.xlabel("Месяц")
+        # подпись оси y
+        plt.ylabel("Продажи")
+        # закрепляем деления оси x с первого по двенадцатый месяц
+        plt.xticks(range(1, 13), [f"{m}" for m in range(1, 13)])
+
+        # толщина букв по умолчанию
+        plt.rcParams["font.weight"] = "bold"
+        # толщина букв заголовка
+        plt.rcParams["axes.titleweight"] = "bold"
+        # толщина букв подписей осей
+        plt.rcParams["axes.labelweight"] = "bold"
+        # размер заголовка
+        plt.rcParams["axes.titlesize"] = 25
+        # размер подписей осей
+        plt.rcParams["axes.labelsize"] = 20
+        # размер цифр на оси x
+        plt.rcParams["xtick.labelsize"] = 25
+        # размер цифр на оси y
+        plt.rcParams["ytick.labelsize"] = 25
+
+        plt.show()
+
+# создаём объект класса
+analysis = SalesAnalysis()
+# запускаем построение рисунка с продажами по месяцам
+analysis.montly_sale_visualization()
+
+```
+\vspace{0.7cm}
+
+Прежде чем переходить к толкованию результатов, стоит ясно оговорить, что 
+\textcolor{red}{\textbf{пунктирная линия посередине рисунка означает среднее значение продаж по месяцам за весь 
+2024 год}}, и что она 
+\textbf{\underline{служит опорной линией, по которой сразу видно, выше или ниже среднего}}
+\textbf{\underline{оказались продажи каждого месяца}}.
+
+\pagebreak
+
+\begin{center}
+{\huge \textcolor{red}{Углублённое толкование результатов}}
+\end{center}
+
+\vspace{0.5cm}
+
+\textbf{Если учитывать смысл задания, а именно «\textcolor{blue}{разобрать данные о продажах за 2024 год, показать на рисунке ход продаж по месяцам и получить полезные для дела выводы}», то приведённое ниже \textcolor{red}{толкование результатов} тоже оказывается осмысленным.}
+
+\vspace{0.5cm}
+
+(1) \textbf{\textcolor{red}{Январь оказался месяцем с самыми большими продажами за весь период}}. 
+Продажи заметно превышают линию среднего, и это указывает на то, что росту могли способствовать 
+\textbf{\underline{акции в начале года, оживление покупательского настроя или}}
+\textbf{\underline{влияние отдельных событий}}.
+При составлении годовой стратегии продаж стоит разобрать причины успеха января и повторить их.
+
+(2) \textbf{\textcolor{red}{Февраль стал месяцем с самыми маленькими продажами}}, он заметно ниже линии среднего. Это можно объяснить \textbf{\underline{исчезновением подъёма начала года, уменьшением}} 
+\textbf{\underline{числа рабочих дней и сезонным спадом}}, и это говорит о том, что на такой период нужны \textbf{\underline{дополнительные меры продвижения или стратегия управления расходами}}.
+
+(3) \textbf{\textcolor{red}{Апрель, май, июль и сентябрь}} образуют участок, который устойчиво держится выше линии среднего, причём \textbf{\underline{сентябрь даёт второй по величине пик продаж}}. Это можно считать следствием \textbf{\underline{смены квартала или роста спроса во втором полугодии}}, и такой участок относится к \textbf{\underline{ключевому для роста продаж}}.
+
+(4) \textbf{\textcolor{red}{Август это месяц с резким падением продаж}}, по сравнению с соседними месяцами 
+размах изменений очень велик. Это сильно указывает на \textbf{\underline{снижение потребления из-за}} 
+\textbf{\underline{отпускного сезона или перерыв в работе}} и толкуется как главный участок риска, который увеличивает разброс продаж за год. Для этого месяца нужна \textbf{\underline{заранее подготовленная стратегия}}.
+
+(5) \textbf{\textcolor{red}{Ближе к концу года, а это период с октября по декабрь, заметен постепенный спад продаж}}. 
+Линия начинается вблизи среднего и уходит ниже него, что можно объяснить 
+\textbf{\underline{изменением привычек потребления в конце года или исчерпанием бюджетов}}. 
+Однако падение не резкое, поэтому это можно оценить как \textbf{\underline{спокойное, хотя и}}
+\textbf{\underline{замедляющееся завершение года}}.
+
+\vspace{0.5cm}
+
+Если коротко, этот рисунок показывает
+\textbf{\textcolor{red}{ясную сезонную картину продаж}},
+а именно \textbf{\underline{силу в начале года и в начале осени, летний спад и мягкое замедление к концу года}},
+и это даёт для дальнейшего управления делом, прежде всего для \textbf{\underline{составления разных стратегий}}
+\textbf{\underline{по месяцам и для управления рисками}}, вполне практическое понимание.
+
+
+\vspace{0.5cm}
+
+
+\vspace{0.7cm}
+
+
+\vspace{1cm}
+
+Этот документ подготовлен в формате \textbf{\textcolor{navy}{Quarto Markdown}}(.qmd), который позволяет объединять код \textcolor{pleft}{\textbf{Pyt}}\textcolor{pright}{\textbf{hon}} и текст документа в одном файле, и выведен в формате PDF.
+
+\par

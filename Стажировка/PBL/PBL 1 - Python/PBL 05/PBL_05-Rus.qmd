@@ -1,0 +1,310 @@
+---
+title: ""
+subtitle: ""
+author: ""
+title-block-style: none
+
+format:
+  pdf:
+    pdf-engine: lualatex
+    mainfont: "Times New Roman"
+    titlepage: false
+    geometry:
+      - top=2.2cm
+    include-in-header:
+      text: |
+        \usepackage{xcolor}
+        \definecolor{pleft}{rgb}{0.18, 0.42, 0.69} % синий цвет Python
+        \definecolor{pright}{rgb}{1.0, 0.83, 0.0}  % жёлтый цвет Python
+        \definecolor{darkcyan}{rgb}{0, 0.55, 0.75} % тёмно-голубой цвет
+        \definecolor{navy}{rgb}{0.0, 0.0, 0.5}     % тёмно-синий цвет
+        \usepackage{fontspec,graphicx}
+        \usepackage{luatexko} % пакет поддержки корейского языка
+        
+        \usepackage{fontspec,graphicx}
+        \setmainfont{Times New Roman}[Ligatures=TeX]
+        \setsansfont{Times New Roman}[Ligatures=TeX]
+        \setmonofont{Times New Roman}
+        
+        % настройка корейского шрифта, можно заменить на имя шрифта, установленного в macOS
+        % например, стандартный корейский шрифт Apple
+        \setmainhangulfont{Apple SD Gothic Neo}
+        \setsanshangulfont{Apple SD Gothic Neo}
+        \setmonohangulfont{Apple SD Gothic Neo}
+
+        \newcommand{\TitleStyle}{\fontsize{46pt}{54pt}\selectfont\bfseries}
+        \newcommand{\SubtitleStyle}{\fontsize{24pt}{30pt}\selectfont}
+        \newcommand{\AffilStyle}{\fontsize{25pt}{26pt}\selectfont}
+        \newcommand{\NameStyle}{\fontsize{33pt}{34pt}\selectfont\bfseries}
+
+        \newcommand{\TopPullUp}{-1.0em}
+        \newcommand{\TitleSubtitleSep}{12pt}
+        \newcommand{\SubtitleImageSep}{33pt}
+        \newcommand{\ImageAffilSep}{33pt}
+        \newcommand{\AffilLineSep}{10pt}
+
+    include-before-body:
+      text: |
+        % на титульной странице номер страницы скрыт
+        \pagenumbering{gobble}
+
+        \begin{titlepage}
+        \thispagestyle{empty}
+        \centering
+        \vspace*{\TopPullUp}
+
+        {\TitleStyle Python PBL 05\par}
+        \vspace{\TitleSubtitleSep}
+        {\SubtitleStyle \fontsize{19pt}{22.8pt}\selectfont « Наглядный разбор успеваемости студентов по предметам »\par}
+
+        \vspace{\SubtitleImageSep}
+        \begin{center}
+          \includegraphics[width=0.62\textwidth]{Python_Logo.png}
+        \end{center}
+
+        \vspace{\ImageAffilSep}
+        {\AffilStyle SK Shieldus\par}
+        \vspace{\AffilLineSep}
+        {\AffilStyle Rookies, 30-й набор \  (личный номер 14)\par}
+        \vspace{\AffilLineSep}
+        {\NameStyle Ким Джэ-Ук\par}
+
+        \vfill
+        \end{titlepage}
+
+        % с основного текста нумерация страниц начинается с 1
+        \clearpage
+        \pagenumbering{arabic}
+
+ipynb: true
+
+jupyter: python3
+toc: false
+# toc-depth: 2
+
+execute:   
+  echo: true
+  warning: false
+  message: false
+freeze: auto
+---
+
+\pagebreak
+
+\begin{center}
+{\Huge \textcolor{red}{Решение PBL 05}}
+\end{center}
+
+```{python}
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+class StudentScoreAnalysis:
+    def __init__(self):
+        # закрепляем случайные числа, чтобы при каждом запуске
+        # получался один и тот же результат
+        np.random.seed(777)
+        # создаём словарь, в котором будут храниться баллы студентов
+        data = {
+            # создаём имена от Студент 1 до Студент 20
+            "имя": ["Студент " + str(i) for i in range(1, 21)],
+            # случайные баллы по математике от 50 до 100
+            "математика": np.random.randint(50, 101, 20),
+            # случайные баллы по английскому от 50 до 100
+            "английский": np.random.randint(50, 101, 20),
+            # случайные баллы по науке от 50 до 100
+            "наука": np.random.randint(50, 101, 20),
+        }
+        # превращаем словарь в таблицу DataFrame и сохраняем её
+        self._df = pd.DataFrame(data)
+
+    def subject_means_visualization(self):
+        # считаем средний балл по каждому предмету
+        subject_means = self._df[["математика", "английский", "наука"]].mean()
+
+        # шрифт с поддержкой кириллицы, чтобы буквы не пропадали
+        plt.rcParams["font.family"] = "DejaVu Sans"
+        # задаём размер рисунка
+        plt.figure(figsize=(15, 9))
+
+        # показываем средние баллы по предметам столбиками
+        bars = plt.bar(subject_means.index, subject_means.values)
+
+        # считаем общее среднее из этих средних баллов
+        avg_mean = subject_means.mean()
+        # показываем линию общего среднего пунктиром
+        plt.axhline(avg_mean, linestyle="--")
+
+        # подписываем балл над каждым столбиком
+        for bar in bars:
+            # высота столбика, то есть средний балл
+            height = bar.get_height()
+            plt.annotate(
+                # показываем число с одним знаком после запятой
+                f"{height:.1f}",
+                # точка над серединой столбика
+                (bar.get_x() + bar.get_width() / 2, height),
+                # сдвигаем текст немного выше столбика
+                xytext=(0, 7),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+            )
+
+        # заголовок рисунка
+        plt.title("Средний балл по предметам")
+        # подпись оси x
+        plt.xlabel("Предмет")
+        # подпись оси y
+        plt.ylabel("Средний балл")
+
+        # толщина букв по умолчанию
+        plt.rcParams["font.weight"] = "bold"
+        # толщина букв заголовка
+        plt.rcParams["axes.titleweight"] = "bold"
+        # толщина букв подписей осей
+        plt.rcParams["axes.labelweight"] = "bold"
+        # размер заголовка
+        plt.rcParams["axes.titlesize"] = 25
+        # размер подписей осей
+        plt.rcParams["axes.labelsize"] = 20
+        # размер подписей на оси x
+        plt.rcParams["xtick.labelsize"] = 25
+        # размер подписей на оси y
+        plt.rcParams["ytick.labelsize"] = 25
+
+        plt.show()
+
+    def top5_means_visualization(self):
+        # считаем средний балл каждого студента по трём предметам
+        self._df["среднее"] = self._df[["математика", "английский",
+                                        "наука"]].mean(axis=1)
+        # отбираем пятерых студентов с самым высоким средним баллом
+        top5_df = self._df.sort_values(by="среднее", ascending=False).head(5)
+
+        # шрифт с поддержкой кириллицы, чтобы буквы не пропадали
+        plt.rcParams["font.family"] = "DejaVu Sans"
+        # задаём размер рисунка
+        plt.figure(figsize=(15, 9))
+
+        # показываем средние баллы этих пятерых столбиками
+        bars = plt.bar(top5_df["имя"], top5_df["среднее"], color="orange")
+
+        # считаем средний балл внутри этой пятёрки
+        avg_top5 = top5_df["среднее"].mean()
+        # показываем линию среднего по пятёрке пунктиром
+        plt.axhline(avg_top5, linestyle="--")
+
+        # подписываем балл над каждым столбиком
+        for bar in bars:
+            # высота столбика, то есть средний балл
+            height = bar.get_height()
+            plt.annotate(
+                # показываем число с одним знаком после запятой
+                f"{height:.1f}",
+                # точка над серединой столбика
+                (bar.get_x() + bar.get_width() / 2, height),
+                # сдвигаем текст немного выше столбика
+                xytext=(0, 7),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+            )
+
+        # заголовок рисунка
+        plt.title("Пятеро студентов с самым высоким средним баллом")
+        # подпись оси x
+        plt.xlabel("Имя")
+        # подпись оси y
+        plt.ylabel("Средний балл")
+
+        # толщина букв по умолчанию
+        plt.rcParams["font.weight"] = "bold"
+        # толщина букв заголовка
+        plt.rcParams["axes.titleweight"] = "bold"
+        # толщина букв подписей осей
+        plt.rcParams["axes.labelweight"] = "bold"
+        # размер заголовка
+        plt.rcParams["axes.titlesize"] = 25
+        # размер подписей осей
+        plt.rcParams["axes.labelsize"] = 20
+        # размер подписей на оси x
+        plt.rcParams["xtick.labelsize"] = 25
+        # размер подписей на оси y
+        plt.rcParams["ytick.labelsize"] = 25
+
+        plt.show()
+
+
+# создаём объект класса
+analysis = StudentScoreAnalysis()
+# строим рисунок со средними баллами по предметам
+analysis.subject_means_visualization()
+# строим рисунок с пятёркой лучших по среднему баллу
+analysis.top5_means_visualization()
+
+```
+\vspace{0.7cm}
+
+Прежде чем переходить к толкованию результатов, стоит ясно оговорить, что
+\textcolor{red}{\textbf{пунктирная линия посередине каждого рисунка означает среднее арифметическое тех значений, которые на этом рисунке показаны}}.
+То есть \textbf{\underline{на рисунке}}
+\textbf{\underline{со средними баллами по предметам}}
+\textbf{\underline{это среднее из средних баллов по математике, английскому и науке}},
+\textbf{\underline{а на рисунке с пятёркой}}
+\textbf{\underline{лучших это среднее из средних баллов самих этих пяти студентов}}.
+Такая пунктирная линия \textbf{\underline{служит опорной линией, по которой сразу видно, на каком уровне
+находится отдельный}} 
+\textbf{\underline{столбик по сравнению со средним внутри той же группы}}.
+
+\vspace{1cm}
+
+\newpage
+
+\begin{center}
+{\huge \textcolor{red}{Толкование результатов}}
+\end{center}
+
+\vspace{0.5cm}
+
+\textbf{Если учитывать смысл задания, а именно « \textcolor{blue}{разобрать данные об успеваемости двадцати студентов по предметам и получить статистические выводы} », то приведённое ниже \textcolor{red}{толкование результатов} тоже оказывается осмысленным.}
+
+\vspace{0.5cm}
+
+(1) Прежде всего, если посмотреть на рисунок со средними баллами по предметам, то
+\textbf{\textcolor{red}{средние баллы по математике и по науке оказываются выше опорной линии}},
+тогда как
+\textbf{\textcolor{red}{средний балл по английскому остаётся \underline{заметно} ниже опорной линии}}.
+Это указывает на то, что в этих данных \textbf{\underline{студенты по английскому показывают более}}
+\textbf{\underline{низкие результаты, чем по математике и науке}},
+и такой результат наглядно подтверждает, что \textbf{\underline{успеваемость}}
+\textbf{\underline{между предметами распределена неравномерно}}.
+
+\
+
+(2) Далее, на рисунке с пятёркой лучших по среднему баллу
+средние баллы сильных студентов лежат в пределах довольно узкого промежутка,
+но по разнице между столбиками видно, что \textbf{\underline{и внутри сильной группы есть свои различия в уровне}}
+\textbf{\underline{подготовки}}.
+Это можно толковать так, что сильных студентов не стоит считать однородной группой,
+и что \textbf{\underline{возможен дополнительный разбор по уровням}}
+\textbf{\underline{или отдельная обратная}}
+\textbf{\underline{связь каждому}}.
+
+\vspace{0.5cm}
+
+В целом эти рисунки
+\textbf{\textcolor{red}{построены так, чтобы одновременно сравнивать и толковать разницу в средней успеваемости между предметами и распределение средних баллов внутри сильной группы}},
+и потому имеют смысл как \textbf{\underline{стройное и наглядное средство разбора}}
+\textbf{\underline{успеваемости}} на основе данных об оценках студентов.
+
+\vspace{0.5cm}
+
+
+\vspace{0.7cm}
+
+
+\vspace{1cm}
+
+Этот документ подготовлен в формате \textbf{\textcolor{navy}{Quarto Markdown}}(.qmd), который позволяет объединять код \textcolor{pleft}{\textbf{Pyt}}\textcolor{pright}{\textbf{hon}} и текст документа в одном файле, и выведен в формате PDF.

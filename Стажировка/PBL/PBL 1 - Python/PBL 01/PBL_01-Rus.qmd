@@ -1,0 +1,252 @@
+---
+title: ""
+subtitle: ""
+author: ""
+title-block-style: none
+format:
+  pdf:
+    pdf-engine: lualatex
+    mainfont: "Times New Roman"
+    titlepage: false
+    geometry:
+      - top=2.2cm
+    include-in-header:
+      text: |
+        \usepackage{xcolor}
+        \definecolor{pleft}{rgb}{0.18, 0.42, 0.69} % синий цвет Python
+        \definecolor{pright}{rgb}{1.0, 0.83, 0.0}  % жёлтый цвет Python
+        \definecolor{darkcyan}{rgb}{0, 0.55, 0.75} % тёмно-голубой цвет
+        \definecolor{navy}{rgb}{0.0, 0.0, 0.5}     % тёмно-синий цвет
+        \usepackage{fontspec,graphicx}
+        \usepackage{luatexko} % пакет поддержки корейского языка
+        
+        \usepackage{fontspec,graphicx}
+        \setmainfont{Times New Roman}[Ligatures=TeX]
+        \setsansfont{Times New Roman}[Ligatures=TeX]
+        \setmonofont{Times New Roman}
+        
+        % настройка корейского шрифта, можно заменить на имя шрифта, установленного в macOS
+        % например, стандартный корейский шрифт Apple
+        \setmainhangulfont{Apple SD Gothic Neo}
+        \setsanshangulfont{Apple SD Gothic Neo}
+        \setmonohangulfont{Apple SD Gothic Neo}
+        \newcommand{\TitleStyle}{\fontsize{46pt}{54pt}\selectfont\bfseries}
+        \newcommand{\SubtitleStyle}{\fontsize{24pt}{30pt}\selectfont}
+        \newcommand{\AffilStyle}{\fontsize{25pt}{26pt}\selectfont}
+        \newcommand{\NameStyle}{\fontsize{33pt}{34pt}\selectfont\bfseries}
+        \newcommand{\TopPullUp}{-1.0em}
+        \newcommand{\TitleSubtitleSep}{12pt}
+        \newcommand{\SubtitleImageSep}{33pt}
+        \newcommand{\ImageAffilSep}{33pt}
+        \newcommand{\AffilLineSep}{10pt}
+    include-before-body:
+      text: |
+        % на титульной странице номер страницы скрыт
+        \pagenumbering{gobble}
+        \begin{titlepage}
+        \thispagestyle{empty}
+        \centering
+        \vspace*{\TopPullUp}
+        {\TitleStyle Python PBL 01\par}
+        \vspace{\TitleSubtitleSep}
+        {\SubtitleStyle \fontsize{19pt}{22.8pt}\selectfont « Программа учёта оценок студентов на основе ООП в Python »\par}
+        \vspace{\SubtitleImageSep}
+        \begin{center}
+          \includegraphics[width=0.62\textwidth]{Python_Logo.png}
+        \end{center}
+        \vspace{\ImageAffilSep}
+        {\AffilStyle SK Shieldus\par}
+        \vspace{\AffilLineSep}
+        {\AffilStyle Rookies, 30-й набор \  (личный номер 14)\par}
+        \vspace{\AffilLineSep}
+        {\NameStyle Ким Джэ-Ук\par}
+        \vfill
+        \end{titlepage}
+        % с основного текста нумерация страниц начинается с 1
+        \clearpage
+        \pagenumbering{arabic}
+ipynb: true
+jupyter: python3
+toc: false
+# toc-depth: 2
+execute:
+  echo: true
+  warning: false
+  message: false
+freeze: auto
+---
+\pagebreak
+\begin{center}
+{\Huge \textcolor{red}{Решение PBL 01}}
+\end{center}
+```{python}
+# стандартная библиотека для работы с операционной системой,
+# например с путями к файлам
+import os
+# библиотека для переноса длинного текста по заданной ширине
+import textwrap
+# класс для хранения и анализа оценок студентов
+class StudentScores:
+    # конструктор, который выполняется при создании объекта
+    def __init__(self, filename="scores_Korean.txt"):
+        # сохраняем имя файла с оценками как атрибут объекта
+        self.filename = filename
+        # пустой словарь, ключ это имя студента, значение это балл
+        self.scores = {}
+        # вызываем внутренний метод, который читает данные из файла
+        self._load()
+    # внутренний метод только для загрузки данных из файла
+    def _load(self):
+        # при открытии файла может возникнуть ошибка,
+        # поэтому начинаем обработку исключений
+        try:
+            # открываем файл с оценками в режиме чтения
+            with open(self.filename, "r", encoding="utf-8") as f:
+                # читаем файл построчно по порядку
+                for line in f:
+                    # убираем пробелы по краям и знак перевода строки
+                    line = line.strip()
+                    # если строка пустая
+                    if not line:
+                        # ничего не делаем и идём к следующей строке
+                        continue
+                    # при делении строки на имя и балл возможна ошибка,
+                    # поэтому тоже обрабатываем исключения
+                    try:
+                        # делим строку на имя и балл по запятой
+                        name, score = line.split(",", 1)
+                        # убираем пробелы по краям имени
+                        name = name.strip()
+                        # превращаем балл из строки в вещественное число
+                        score = float(score.strip())
+                        # только если имя не пустое
+                        if name:
+                            # сохраняем имя и балл в словарь
+                            self.scores[name] = score
+                    # если формат неверный и преобразование не удалось
+                    except ValueError:
+                        # пропускаем эту строку и идём к следующей
+                        continue
+        # если файла нет или его невозможно открыть
+        except (FileNotFoundError, OSError):
+            # данных нет, поэтому оставляем пустой словарь
+            self.scores = {}
+    # метод, который вычисляет средний балл студентов
+    def calculate_average(self):
+        # если нет ни одной записи об оценках
+        if not self.scores:
+            # возвращаем средний балл 0.0
+            return 0.0
+        # делим сумму всех баллов на число студентов
+        return sum(self.scores.values()) / len(self.scores)
+    # метод, который находит студентов с баллом не ниже среднего
+    def get_above_average(self):
+        # вычисляем общий средний балл и сохраняем его в avg
+        avg = self.calculate_average()
+        # возвращаем списком имена студентов не ниже среднего
+        return [name for name, score in self.scores.items() if score >= avg]
+    # метод, который сохраняет в файл студентов ниже среднего
+    def save_below_average(self, output_filename="below_average_Korean.txt"):
+        # вычисляем средний балл
+        avg = self.calculate_average()
+        # список пар из имени и балла для студентов ниже среднего
+        below = [(name, score) for name, score in self.scores.items()
+                 if score < avg]
+        # если таких студентов нет ни одного
+        if not below:
+            # ничего не делаем и выходим из метода
+            return
+        # открываем выходной файл в режиме записи
+        with open(output_filename, "w", encoding="utf-8") as f:
+            # перебираем список студентов с баллом ниже среднего
+            for name, score in below:
+                # пишем имя и балл через запятую одной строкой
+                f.write(f"{name},{score}\n")
+    # метод, который выводит на экран результаты анализа
+    def print_summary(self):
+        # если данных об оценках нет
+        if not self.scores:
+            # выводим поясняющее сообщение
+            print("Нет данных для анализа.")
+            # выходим из метода
+            return
+        # вычисляем средний балл
+        avg = self.calculate_average()
+        # получаем список студентов с баллом не ниже среднего
+        above = self.get_above_average()
+        # соединяем имена и переносим их по ширине 70 знаков,
+        # чтобы длинная строка не выходила за край страницы
+        names = textwrap.fill(", ".join(above), width=70) if above else "нет"
+        # выводим заголовок результатов анализа
+        print("Результаты анализа успеваемости студентов")
+        # выводим общее число студентов
+        print(f"Общее число студентов {len(self.scores)} чел.")
+        # выводим средний балл с двумя знаками после запятой
+        print(f"Средний балл {avg:.2f}")
+        # выводим количество студентов не ниже среднего
+        print(f"Студентов не ниже среднего {len(above)} чел.")
+        # выводим их имена
+        print(names)
+# условие, при котором код ниже выполняется
+# только при прямом запуске этого файла
+if __name__ == "__main__":
+    input_file = "scores_Korean.txt"
+    output_file = "below_average_Korean.txt"
+    # в среде Quarto, в отличие от файла .py в VSCode,
+    # переменная __file__ часто оказывается не определена
+    # то есть если строить путь от расположения самого файла Python,
+    # как показано ниже, возникает ошибка NameError
+    # поэтому имя файла используется напрямую относительно
+    # рабочей папки, то есть текущего места запуска
+
+    # base_dir = os.path.dirname(os.path.abspath(__file__))
+    # получаем путь к папке, где находится этот файл Python
+    # input_file = os.path.join(base_dir, "scores_Korean.txt")
+    # строим путь к входному файлу от текущей папки
+    # output_file = os.path.join(base_dir, "below_average_Korean.txt")
+    # строим путь к выходному файлу от текущей папки
+    # создаём объект StudentScores и передаём ему входной файл
+    s = StudentScores(input_file)
+    # выводим на экран сводку с результатами анализа
+    s.print_summary()
+    # сохраняем в файл студентов с баллом ниже среднего
+    s.save_below_average(output_file)
+```
+\textbf{\textcolor{blue}{По ходу вычислений и по результатам выполнения кода на Python можно убедиться, что все цели, поставленные в задании, полностью достигнуты}}.
+\pagebreak
+\begin{center}
+{\huge \textcolor{red}{Подробное содержание файла scores\_korean.txt}}
+\end{center}
+\vspace{0.5cm}
+```{python}
+# имя текстового файла, он должен лежать в текущей рабочей папке
+path = "scores_korean.txt"
+# открываем файл в режиме чтения и указываем кодировку utf-8,
+# чтобы текст не искажался
+with open(path, "r", encoding="utf-8") as f:
+    # читаем всё содержимое файла сразу как одну строку
+    content = f.read()
+print(content)
+```
+\pagebreak
+\begin{center}
+{\huge \textcolor{red}{Проверка правильности результатов}}
+\end{center}
+\vspace{0.5cm}
+## 1. Общее число студентов равно 25, и это верно (очевидно)
+## 2. Проверка среднего балла, получено 84.76 (полное совпадение)
+```{python}
+scores = [
+    81, 93, 76, 88, 84,
+    90, 79, 95, 82, 87,
+    74, 91, 86, 78, 89,
+    83, 92, 77, 85, 94,
+    80, 88, 73, 90, 84
+]
+average = sum(scores) / len(scores)
+print("Средний балл", average)
+```
+## 3. Студентов с баллом не ниже среднего 13 человек, каждое имя проверяется по отдельности (очевидно)
+\vspace{1cm}
+Этот документ подготовлен в формате \textbf{\textcolor{navy}{Quarto Markdown}}(.qmd), который позволяет объединять код \textcolor{pleft}{\textbf{Pyt}}\textcolor{pright}{\textbf{hon}} и текст документа в одном файле, и выведен в формате PDF.
+\par

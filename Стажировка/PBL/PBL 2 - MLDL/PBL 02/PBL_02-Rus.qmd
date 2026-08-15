@@ -1,0 +1,654 @@
+---
+title: ""
+subtitle: ""
+author: ""
+title-block-style: none
+
+format:
+  pdf:
+    pdf-engine: lualatex
+    mainfont: "Times New Roman"
+    titlepage: false
+    geometry:
+      - top=2.2cm
+    include-in-header:
+      text: |
+        \usepackage{xcolor}
+        \definecolor{pleft}{rgb}{0.18, 0.42, 0.69} % синий цвет Python
+        \definecolor{pright}{rgb}{1.0, 0.83, 0.0}  % жёлтый цвет Python
+        \definecolor{darkcyan}{rgb}{0, 0.55, 0.75} % тёмно-голубой цвет
+        \definecolor{navy}{rgb}{0.0, 0.0, 0.5}     % тёмно-синий цвет
+        \definecolor{ForestGreen}{rgb}{0.133, 0.545, 0.133} % настоящий зелёный
+        \usepackage{fontspec,graphicx}
+        \usepackage{luatexko} % пакет поддержки корейского языка
+        
+        \usepackage{fontspec,graphicx}
+        \setmainfont{Times New Roman}[Ligatures=TeX]
+        \setsansfont{Times New Roman}[Ligatures=TeX]
+        \setmonofont{Times New Roman}
+        
+        % настройка корейского шрифта, можно заменить на имя шрифта, установленного в macOS
+        % например, стандартный корейский шрифт Apple
+        \setmainhangulfont{Apple SD Gothic Neo}
+        \setsanshangulfont{Apple SD Gothic Neo}
+        \setmonohangulfont{Apple SD Gothic Neo}
+
+        \newcommand{\TitleStyle}{\fontsize{46pt}{54pt}\selectfont\bfseries}
+        \newcommand{\SubtitleStyle}{\fontsize{24pt}{30pt}\selectfont}
+        \newcommand{\AffilStyle}{\fontsize{25pt}{26pt}\selectfont}
+        \newcommand{\NameStyle}{\fontsize{33pt}{34pt}\selectfont\bfseries}
+
+        \newcommand{\TopPullUp}{-1.0em}
+        \newcommand{\TitleSubtitleSep}{12pt}
+        \newcommand{\SubtitleImageSep}{33pt}
+        \newcommand{\ImageAffilSep}{33pt}
+        \newcommand{\AffilLineSep}{10pt}
+
+    include-before-body:
+      text: |
+        % на титульной странице номер страницы скрыт
+        \pagenumbering{gobble}
+
+        \begin{titlepage}
+        \thispagestyle{empty}
+        \centering
+        \vspace*{\TopPullUp}
+
+        {\TitleStyle ML / DL  : PBL 02\par}
+        \vspace{\TitleSubtitleSep}
+        {\SubtitleStyle \fontsize{19pt}{22.8pt}\selectfont « Обучение и предсказание регрессионной модели на данных о ценах жилья »\par}
+
+        \vspace{\SubtitleImageSep}
+        \begin{center}
+          \includegraphics[width=0.62\textwidth]{Python_Logo.png}
+        \end{center}
+
+        \vspace{\ImageAffilSep}
+        {\AffilStyle SK Shieldus\par}
+        \vspace{\AffilLineSep}
+        {\AffilStyle Rookies, 30-й набор \  (личный номер 14)\par}
+        \vspace{\AffilLineSep}
+        {\NameStyle Ким Джэ-Ук\par}
+
+        \vfill
+        \end{titlepage}
+
+        % с основного текста нумерация страниц начинается с 1
+        \clearpage
+        \pagenumbering{arabic}
+
+ipynb: true
+
+jupyter: python3
+toc: false
+# toc-depth: 2
+
+execute:   
+  echo: true
+  warning: false
+  message: false
+freeze: auto
+---
+
+\pagebreak
+
+\begin{center}
+{\Huge \textcolor{red}{Решение PBL 02}}
+\end{center}
+
+```{python}
+import pandas as pd
+import numpy as np
+
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# загружаем данные для обучения
+df = pd.read_csv("20260112_153749_train.csv")
+```
+
+```{python}
+# разведочный разбор, посмотрим, из чего состоят данные
+print(f"В этой таблице число строк {df.shape[0]} и число столбцов {df.shape[1]}")
+print("-"*30)
+# смотрим, какие именно есть столбцы, возьмём для примера десять
+print("Возьмём для примера десять столбцов\n"
+      f"{', '.join(df.columns.values.astype(str)[:10])}")
+```
+
+```{python}
+print("-"*5," Первые десять значений столбца 'LotFrontage' ","-"*5)
+print(df["LotFrontage"].head(10))
+```
+
+\vspace{0.7cm}
+
+\begin{center}
+  {\large\textbf{\textcolor{navy}{По выводу выше можно составить общее представление о данных в столбце 'LotFrontage'.}}}
+\end{center}
+
+\pagebreak
+
+```{python}
+# считаем общее число пропусков по каждому столбцу
+# сначала хотел посмотреть только пятнадцать переменных
+# top15_null_col = null_count_by_col.sort_values(ascending=False).head(15)
+# print(top15_null_col)   # пятнадцать столбцов по убыванию числа пропусков
+
+# но решил, что лучше просмотреть все переменные, и вывел их полностью
+null_count_by_col = df.isnull().sum()
+all_null_col = null_count_by_col.sort_values(ascending=False)
+
+# берём HTML, чтобы таблица выглядела опрятнее, чем при print
+from IPython.display import HTML
+# сохраняем прежние названия строк, которые лежали в индексе
+html_table = all_null_col.reset_index( drop = False )
+html_table.columns = ["Feature" , "Число"]
+html_table["Доля"] = (html_table["Число"] / len(df)) * 100
+
+total_row_num = len(html_table)
+half_row_num = (total_row_num + 1) // 2
+# делим строки на левую и правую часть, потому что слишком вытянутая
+# вниз таблица зря тратит место по ширине, это неэкономно
+# единицу в скобках прибавляем, чтобы при нечётном числе строк
+# в левой части оказалось на одну строку больше
+# берём iloc, чтобы выбирать строки по порядку
+left = html_table.iloc[:half_row_num].reset_index(drop = True)
+right = html_table.iloc[half_row_num:].reset_index(drop = True)
+
+left.insert(0, "Index", range(1, len(left) + 1))
+right.insert(0, "Index", range(len(left) + 1, len(left) + len(right) + 1))
+
+# проходим по левой и правой части и убираем запись вида ".0",
+# а то, что нельзя превратить в число, например NaN, оставляем как есть
+for side_table in (left, right) :
+  # столбцов всего 81, поэтому справа последняя клетка остаётся пустой
+  # и Index выводится как ".0", закрепляем целый тип Int64 и убираем это
+  side_table["Index"] = pd.to_numeric(side_table["Index"],
+                                      errors="coerce").astype("Int64")
+  side_table["Число"] = (pd.to_numeric(side_table["Число"],
+                         errors = "coerce").astype("Int64"))
+  side_table["Доля"] = pd.to_numeric(side_table["Доля"],
+                                     errors="coerce").round(2)
+
+# axis = 1 означает, что части ставятся рядом по горизонтали
+merged = pd.concat([left, right], axis = 1)
+merged_display = merged.astype(object).where(merged.notna(),"-")
+
+# как уже было видно на первой странице, всего в наборе 81 столбец,
+# поэтому в левой и правой половине таблицы число строк не совпадает
+# при настройках по умолчанию внизу правой таблицы появилась бы
+# запись NaN, чтобы сравняться с левой половиной
+# тогда последнюю клетку легко принять за пропуск, и чтобы этого
+# не случилось, ставим вместо неё знак -
+# то есть внимание, и Feature, и число наблюдений показаны знаком -,
+# и это не пропуск, а неизбежная пустота из-за нечётного числа (81)
+
+HTML(merged_display.to_html(index = False, border = 1))
+```
+\vspace{-1cm}
+\begin{center}
+  \textbf{\textcolor{ForestGreen}{В таблице столбец Число означает число пропусков, а столбец Доля означает долю пропусков в процентах. Названия сокращены, чтобы таблица не обрезалась по ширине.}}
+  
+  \textbf{\textcolor{purple}{В таблице выше все столбцы расставлены по убыванию числа пропусков. В столбце LotFrontage пропусков всего 259.}}
+  
+  \textbf{\textcolor{blue}{Границу для столбцов с большим числом пропусков мы взяли по содержанию этой таблицы, а именно}} 
+  \textbf{\textcolor{red}{выше 47 \%}}
+  \textbf{\textcolor{blue}{(так охватываются, по сути, все доли пропусков из двух цифр)}}
+  
+  Это сделано потому, что пропуски в переменной LotFrontage будут заменены средним.
+\end{center}
+
+\vspace{1cm}
+
+
+```{python}
+# какие столбцы содержат пропусков больше, чем 47 % всех наблюдений
+too_many_null_cols = null_count_by_col[null_count_by_col > 0.47 * len(df)].index
+joined = ' , '.join(too_many_null_cols.astype(str))
+print("Столбцы, где пропусков больше 47% всех наблюдений "
+      f"{joined[:len(joined)//2]}\n{joined[len(joined)//2:]}")
+# берём join, чтобы соединить строки в одну и поставить между
+# ними разделитель, то есть запятую
+```
+
+```{python}
+# удаляем все найденные выше столбцы, где пропусков больше 47%
+df.drop(columns=too_many_null_cols, inplace=True)
+```
+
+```{python}
+# отдельно посмотрим на нужный нам столбец LotFrontage,
+# возьмём только первые двадцать значений
+col_LotFrontage = df["LotFrontage"].head(20)
+type_list = []
+for T in col_LotFrontage:
+  # добавляем в список только название типа
+  type_list.append(type(T).__name__)
+
+# делаем из первых двадцати значений LotFrontage отдельную таблицу,
+# которая является копией и не связана с исходным df
+df_LF = df[["LotFrontage"]].head(20).copy()
+# добавляем сведения о типе прямо рядом с прежним столбцом
+df_LF["Type"] = type_list
+
+# убираем запись вида ".0", столбец Type при этом трогать нельзя
+df_LF["LotFrontage"] = pd.to_numeric(df_LF["LotFrontage"],
+                                     errors="coerce").astype("Int64")
+total_row_num = len(df_LF)
+half_row_num = (total_row_num + 1) // 2
+
+left = df_LF.iloc[:half_row_num].reset_index(drop = True)
+right = df_LF.iloc[half_row_num:].reset_index(drop = True)
+
+merged = pd.concat([left, right], axis = 1)
+HTML(merged.to_html(index = False, border = 1))
+```
+
+\begin{center}
+  \textbf{\textcolor{purple}{Значение <NA> ( = пропуск ) тоже распознаётся как тип float. Отсюда видно, что по типу судить о пропуске нельзя.}}
+\end{center}
+
+\vspace{1cm}
+
+```{python}
+# убираем ненужный столбец Id, как того требует условие задания
+if "Id" in df.columns:
+    df.drop(columns=["Id"], inplace = True)
+if "Id" in df.columns:
+  print("Столбец Id удалён не полностью")
+else:
+  print("Столбец Id удалён полностью")
+```
+
+```{python}
+# отделяем признаки от целевой переменной
+feature_df = df.drop(columns = ["SalePrice"])
+target_series = df["SalePrice"]
+# делим данные на обучающие и проверочные в отношении 8 к 2,
+# как того требует условие задания
+X_train, X_test, y_train, y_test = train_test_split(feature_df, target_series,
+                                                    test_size = 0.2,
+                                                    random_state = 42)
+```
+
+
+```{python}
+# работа с пропусками в LotFrontage, среднее считаем только
+# по обучающей части и одно и то же значение применяем к обеим частям
+if "LotFrontage" in X_train.columns:
+    # среднее посчитано только на обучающих данных
+    lf_mean = X_train["LotFrontage"].mean()
+    X_train["LotFrontage"] = X_train["LotFrontage"].fillna(lf_mean)
+    X_test["LotFrontage"]  = X_test["LotFrontage"].fillna(lf_mean)
+
+# превращаем качественные признаки в набор из нулей и единиц,
+# причём делаем это после разделения, отдельно для каждой части
+X_train = pd.get_dummies(X_train, drop_first = True)
+X_test  = pd.get_dummies(X_test, drop_first = True)
+
+# приводим столбцы проверочной части к столбцам обучающей,
+# а недостающие заполняем нулями
+X_test = X_test.reindex(columns = X_train.columns, fill_value = 0)
+```
+
+```{python}
+# проверим, хорошо ли убрались пропуски в LotFrontage
+print("Число пропусков LotFrontage в обучающей части ",
+      X_train["LotFrontage"].isna().sum())
+print(""*30)
+print("Число пропусков LotFrontage в проверочной части ",
+      X_test["LotFrontage"].isna().sum())
+```
+
+\pagebreak
+
+\begin{center}
+  {\large\textbf{\textcolor{red}{Здесь может возникнуть вопрос, почему замена средним сделана уже после разделения на обучающую и проверочную части.}}}
+\end{center}
+
+\noindent\hspace*{25pt} Причина в том, что если посчитать среднее до разделения, то в него попадут \textbf{те значения LotFrontage из проверочной части, которые пропусками не являются}, и само среднее из-за этого может измениться.
+Если заменять пропуски таким средним, то оно применяется и к обучающей, и к проверочной части.
+Значит, \textbf{\textcolor{red}{в ходе подготовки данных сведения из проверочной части могут попасть в расчёт среднего, 
+и в итоге качество на проверочной части может выйти лучше, чем оно есть на самом деле.}} ( Например, MAE и RMSE могут получиться меньше, а $R^2$ больше ) \
+\noindent\hspace*{25pt} \textbf{\textcolor{ForestGreen}{Поэтому ради более строгой оценки среднее считалось только по обучающим данным, и то же самое значение применялось к проверочным, что здесь и оговаривается.}}
+
+\vspace{0.35cm}
+
+```{python}
+# проверим, хорошо ли прошла работа с пропусками
+col_deleted = ["Alley", "MasVnrType", "FireplaceQu", "PoolQC", "Fence",
+               "MiscFeature"]
+
+# 1. проверяем, удалились ли столбцы с большим числом пропусков (выше 47 %)
+still_exists = [c for c in col_deleted if c in df.columns]
+if len(still_exists) == 0:
+    print("Все шесть столбцов с долей пропусков выше 47% удалены")
+else:
+    print("Остались неудалённые столбцы ", still_exists)
+```
+
+```{python}
+# 2. проверяем, исчезли ли пропуски в столбце LotFrontage
+# у X_train и у X_test
+if "LotFrontage" not in X_train.columns:
+    print("В X_train нет столбца LotFrontage")
+else:
+    n_missing_train = X_train["LotFrontage"].isna().sum()
+    n_missing_test  = X_test["LotFrontage"].isna().sum()
+
+    if (n_missing_train == 0) and (n_missing_test == 0):
+        print("Пропуски LotFrontage исчезли в обеих частях")
+    else:
+        print(f"Пропусков в обучающей {n_missing_train} "
+              f"| в проверочной {n_missing_test}")
+```
+
+```{python}
+print("Пропуски (NaN) в X обучающей части ", X_train.isna().sum().sum())
+print("Пропуски (NaN) в X проверочной части ", X_test.isna().sum().sum())
+```
+
+\vspace{0.45cm}
+
+\begin{center}
+{\large\textbf{\textcolor{red}{Здесь может возникнуть вопрос, куда делись те многочисленные пропуски, которые должны были остаться после всей проделанной работы.}}}
+\end{center}
+\noindent\hspace*{25pt} Дело в том, что если внимательно посмотреть на сведения о пропусках по всем переменным, приведённые на странице 3, видно, что многие пропуски, которые должны были дожить до этого шага, исчезли...!
+Если говорить точнее, по строкам с номерами Index от 8 до 19 на странице 3 пропусков было в сумме 601, а сейчас их осталось всего 89 ( = 70 в обучающей и 19 в проверочной ).
+
+\begin{center}
+  \textbf{$\Rightarrow$ Чтобы понять, почему так вышло, посмотрим на тип данных у всех столбцов, где были пропуски.}
+\end{center}
+
+\pagebreak
+
+```{python}
+# берём три столбца с наибольшим числом пропусков, по убыванию
+train_top3 = X_train.isna().sum().sort_values(ascending=False).head(3)
+test_top3  = X_test.isna().sum().sort_values(ascending=False).head(3)
+
+# левая часть ( X_train ), это признак и число пропусков
+left = pd.DataFrame({"Признак (обучение)": train_top3.index.astype(str),
+                     "Число пропусков": train_top3.values.astype(int)})
+
+# правая часть ( X_test ), это признак и число пропусков
+right = pd.DataFrame({"Признак (проверка)": test_top3.index.astype(str),
+                      "Число пропусков": test_top3.values.astype(int)})
+
+# ставим левую и правую части рядом, по три строки в каждой,
+# и получаем таблицу из трёх строк и четырёх столбцов
+merged = pd.concat([left.reset_index(drop=True),
+                    right.reset_index(drop=True)], axis=1)
+merged.columns = ["Признак (обучение)", "Число пропусков",
+                  "Признак (проверка)", "Число пропусков"]
+
+HTML(merged.to_html(index=False, border=1))
+```
+
+\vspace{1cm}
+
+\begin{center}
+{\large\textbf{Что же за пропуски уцелели после всей проделанной работы по удалению и замене}} 
+
+{\large\textbf{и остались в столбцах \textcolor{blue}{GarageYrBlt} и \textcolor{blue}{MasVnrArea} ?}}
+\end{center}
+
+
+
+
+```{python}
+# берём из прежней таблицы только столбцы, где есть хотя бы один
+# пропуск, и расставляем их по убыванию числа пропусков
+# пишем эту строку заново, чтобы код читался проще
+null_count_by_col = df.isnull().sum()
+# условие вынесено отдельно ради наглядности кода
+condition = (null_count_by_col > 0) & (null_count_by_col.index != "LotFrontage")
+all_null_col = null_count_by_col[condition].sort_values(ascending=False)
+# столбец LotFrontage мы уже сознательно заполнили средним,
+# поэтому он сюда не входит
+
+# создаём таблицу, где есть только признак и тип переменной
+dtype_map = df.dtypes.astype(str)
+html_table = pd.DataFrame({"Feature": all_null_col.index,
+                           "Тип": dtype_map.loc[all_null_col.index].values})
+
+# считаем число строк, чтобы разделить таблицу на левую и правую части
+total_row_num = len(html_table)
+half_row_num = (total_row_num + 1) // 2
+left = html_table.iloc[:half_row_num].reset_index(drop=True)
+right = html_table.iloc[half_row_num:].reset_index(drop=True)
+
+# добавляем столбец Index в каждую часть, нумерация идёт с единицы
+# и продолжается сквозной по всей таблице
+left.insert(0, "Index", range(1, len(left) + 1))
+right.insert(0, "Index", range(len(left) + 1, len(left) + len(right) + 1))
+
+# закрепляем у Index целый тип Int64 и убираем запись вида ".0"
+for side_table in (left, right):
+    side_table["Index"] = pd.to_numeric(side_table["Index"],
+                                        errors="coerce").astype("Int64")
+
+# ставим левую и правую части рядом по горизонтали
+merged = pd.concat([left, right], axis=1)
+
+# правая часть короче, и появившиеся из-за этого NaN заменяем знаком "-"
+merged_display = merged.astype(object).where(merged.notna(), "-")
+HTML(merged_display.to_html(index=False, border=1))
+```
+
+
+\noindent\hspace*{15pt}Прежде всего, есть сильное основание полагать, что пропуски у \textbf{\textcolor{red}{качественных}} ( \textbf{\textcolor{red}{categorical}} ) переменных вроде \textbf{\textcolor{red}{GarageCond}} / \textbf{\textcolor{red}{GarageType}} / \textbf{\textcolor{red}{BsmtQual}} / \textbf{\textcolor{red}{Electrical}} уже превратились в \textit{get\_dummies} из NaN в « наборы нулей и единиц ».\
+\noindent\hspace*{15pt}А пропуски остались только в столбцах \textbf{\textcolor{blue}{GarageYrBlt}} и \textbf{\textcolor{blue}{MasVnrArea}} потому, что это \textbf{\textcolor{blue}{числовые}} ( \textbf{\textcolor{blue}{numeric}} ) переменные.
+
+\pagebreak
+
+\begin{center}
+    {\large\textbf{\textcolor{red}{Опираясь на сведения двух предыдущих страниц, разберёмся с оставшимися пропусками более толково.}}}
+\end{center}
+
+Проверено, что в итоговых данных уже не осталось пропусков у \textbf{\textcolor{red}{качественных}} ( \textbf{\textcolor{red}{categorical}} ) переменных вроде 
+\textbf{\textcolor{red}{GarageCond}} / \textbf{\textcolor{red}{GarageType}} / \textbf{\textcolor{red}{BsmtQual}} 
+/ \textbf{\textcolor{red}{Electrical}}, с которыми мы напрямую не работали, поэтому, учитывая начальный уровень этого задания, дальше мы идём без дополнительной работы с ними.
+
+Однако иначе обстоит дело со столбцами, где лежат \textbf{\textcolor{blue}{числовые}} ( \textbf{\textcolor{blue}{numeric}} ) переменные 
+\textbf{\textcolor{blue}{GarageYrBlt}} и \textbf{\textcolor{blue}{MasVnrArea}}, 
+в них пропуски ещё есть, и поэтому оставшуюся работу мы доводим до конца именно на этих столбцах.
+
+При этом стоит помнить, что переменные \textbf{\textcolor{blue}{GarageYrBlt}} и \textbf{\textcolor{blue}{MasVnrArea}} означают соответственно 
+\textbf{\textit{год, когда у этого дома впервые был построен гараж}}, и 
+\textbf{\textit{площадь каменной облицовки, то есть отделочного камня на наружной стене здания}}. 
+Отсюда следует, что для \textbf{\textcolor{blue}{GarageYrBlt}} разумно заменять пропуски \textbf{\textcolor{ForestGreen}{серединным значением}}, ведь надо учитывать и наличие гаража, и то, как распределены годы,
+а для \textbf{\textcolor{blue}{MasVnrArea}} пропуск, скорее всего, означает отсутствие каменной отделки, и поэтому естественнее всего заменить его на \textbf{\textcolor{ForestGreen}{0}}.
+
+\begin{center}
+    {\large\textbf{\textcolor{brown}{Опираясь на такое рассуждение, работу с пропусками в оставшихся столбцах мы выполнили так, как показано ниже.}}}
+\end{center}
+
+```{python}
+# пропуски GarageYrBlt заменяем серединным значением обучающей части
+if "GarageYrBlt" in X_train.columns:
+    X_train.loc[:, "GarageYrBlt"] = pd.to_numeric(
+        X_train["GarageYrBlt"], errors="coerce"
+    )
+    X_test.loc[:, "GarageYrBlt"] = pd.to_numeric(
+        X_test["GarageYrBlt"], errors="coerce"
+    )
+
+    median_val = X_train["GarageYrBlt"].median()
+    X_train.loc[:, "GarageYrBlt"] = X_train["GarageYrBlt"].fillna(median_val)
+    X_test.loc[:, "GarageYrBlt"]  = X_test["GarageYrBlt"].fillna(median_val)
+```
+
+
+```{python}
+# пропуски MasVnrArea заменяем нулём, ведь это означает отсутствие площади
+if "MasVnrArea" in X_train.columns:
+    X_train.loc[:, "MasVnrArea"] = pd.to_numeric(
+        X_train["MasVnrArea"], errors="coerce"
+    ).fillna(0)
+    X_test.loc[:, "MasVnrArea"] = pd.to_numeric(
+        X_test["MasVnrArea"], errors="coerce"
+    ).fillna(0)
+```
+
+\vspace{0.5cm}
+
+\begin{center}
+  {\large\textbf{\textcolor{navy}{Перед самим обучением и разбором можно убедиться, что все пропуски убраны.}}}
+\end{center}
+
+```{python}
+print("Пропуски (NaN) в X обучающей части ", X_train.isna().sum().sum())
+print("Пропуски (NaN) в X проверочной части ", X_test.isna().sum().sum())
+```
+
+\vspace{1cm}
+
+\begin{center}
+  {\large\textbf{\textcolor{navy}{Разбор проводится на основе всей проделанной до этого подготовки данных.}}}
+\end{center}
+
+\vspace{-0.1cm}
+
+```{python}
+# обучаем регрессионное дерево, а именно DecisionTreeRegressor,
+# как того требует условие задания
+tree_regressor = DecisionTreeRegressor(random_state=42)
+tree_regressor.fit(X_train, y_train)
+# получаем предсказания на проверочных данных и считаем качество
+test_pred = tree_regressor.predict(X_test)
+mae_value = mean_absolute_error(y_test, test_pred)
+mse_value = mean_squared_error(y_test, test_pred)
+rmse_value = np.sqrt(mse_value)
+r2_value = r2_score(y_test, test_pred)
+# выводим оценки качества
+print(f"Оценка модели   |   MAE ( средняя абсолютная ошибка )  :  {mae_value:.2f}")
+print(f"Оценка модели   |   MSE ( средняя квадратичная ошибка )  :  {mse_value:.2f}")
+print(f"Оценка модели   |   RMSE ( корень из средней квадратичной )  :  {rmse_value:.2f}")
+print(f"Оценка модели   |   R2 ( доля объяснённой изменчивости )  :  {r2_value:.2f}")
+```
+
+\vspace{2cm}
+
+\begin{center}
+  {\large\textbf{\textcolor{ForestGreen}{Приведённые выше результаты подробно разбираются дальше, на странице 12.}}}
+\end{center}
+
+\pagebreak
+
+```{python}
+import matplotlib.pyplot as plt
+
+# рисунок с результатами обучения, для многомерной регрессии
+# это обычное сравнение настоящих значений с предсказанными
+# шрифт с поддержкой кириллицы, чтобы буквы не пропадали
+plt.rc('font', family = "DejaVu Sans")
+
+plt.figure(figsize = (9, 6))
+# alpha делает точки темнее там, где они накладываются друг на друга
+plt.scatter(y_test, test_pred, alpha = 0.7)
+plt.xlabel("Настоящая    SalePrice")
+plt.ylabel("Предсказанная    SalePrice")
+plt.title("Регрессионное дерево, настоящие и предсказанные значения")
+
+# опорная линия y = x, при безошибочном предсказании
+# все точки лежали бы прямо на ней
+min_v = min(y_test.min(), test_pred.min())
+max_v = max(y_test.max(), test_pred.max())
+plt.plot([min_v, max_v], [min_v, max_v], linestyle="--")
+plt.show()
+```
+
+\vspace{0.2cm}
+
+Если показать результаты разбора на рисунке, как сделано выше, видно, что настоящие и предсказанные цены жилья в целом лежат вблизи наклонной линии ( y = x ).
+Отсюда же видно, что общий уровень цен модель улавливает сравнительно неплохо.
+Однако чем ближе к области дорогого жилья, тем сильнее точки отходят от этой линии,
+то есть в высоком ценовом промежутке ошибка предсказания заметно растёт, и в этом состоит ограничение модели.
+
+\begin{center}
+  \textbf{\textcolor{orange}{Толкование этого приведено в пункте (3) на следующей странице.}}
+\end{center}
+
+\pagebreak
+
+\begin{center}
+{\huge \textcolor{red}{Толкование результатов}}
+\end{center}
+
+\vspace{0.5cm}
+\textbf{Если учитывать смысл задания, а именно « \textcolor{blue}{подготовить данные о ценах жилья, обучить регрессионную модель на дереве решений и оценить качество предсказания} », то приведённое ниже \textcolor{red}{толкование результатов} тоже оказывается осмысленным.}
+
+\vspace{0.5cm}
+
+(1) Прежде всего, при подготовке данных столбцы были отобраны по числу пропусков,
+и переменные, где пропусков больше 47 % всех наблюдений, были удалены.
+Это можно считать разумным шагом, поскольку учитывается то, что \textbf{\textcolor{red}{переменные с большой долей пропусков способны сделать обучение модели неустойчивым}}.
+Кроме того, у переменной \texttt{LotFrontage} пропуски были заменены средним значением, что уменьшило их остаток,
+а у переменных \texttt{GarageYrBlt} и \texttt{MasVnrArea} пропуски были восполнены соответственно серединным значением и нулём, с оглядкой на смысл самих переменных,
+и тем самым возможные ошибки из-за пропусков были заранее и естественным образом сняты.
+Качественные переменные были преобразованы через \texttt{get\_dummies ( drop\_first = True )}, и это указывает на то, что
+\textbf{\underline{данные приведены к виду, при котором модель может обучаться на одних только 
+\textbf{\underline{числовых входных значениях}}.
+\
+
+(2) Далее, при оценке качества регрессионной модели на дереве решений
+\textbf{\textcolor{red}{MAE составила 29070.50}}, а значит,
+на проверочных данных \textbf{\underline{предсказание расходится с настоящей}}
+\textbf{\underline{ценой жилья в среднем примерно на 2,9 десятка тысяч долларов по модулю}}.
+При этом RMSE оказалась равна \textbf{\textcolor{red}{43424.47}}, то есть заметно больше MAE,
+и это, в силу самой природы показателей, основанных на квадрате ошибки, указывает на \textbf{\underline{возможность сравнительно больших ошибок на части наблюдений}}.
+Наконец, значение $R^2$ составило \textbf{\textcolor{red}{0.75}}, а значит,
+эта модель объясняет примерно 75 % изменчивости цен жилья на проверочных данных, и это
+численно подтверждает, что \textbf{\underline{даже после простой подготовки данных дерево решений даёт определённую}}
+\textbf{\underline{предсказательную силу}}.
+\
+
+(3) Вместе с тем, если посмотреть на рисунок с настоящими и предсказанными значениями, видно \textbf{\textcolor{red}{нарастание ошибки прежде всего в промежутке дорогого жилья}}.
+Так происходит потому, что \textbf{\underline{очень дорогого жилья в данных сравнительно мало, и}}
+\textbf{\underline{модели трудно набрать достаточно примеров для обучения}},
+а дерево решений по своей сути \textbf{\underline{собирает похожие наблюдения вместе}}
+\textbf{\underline{и предсказывает по их среднему}}.
+В итоге в области дорогого жилья похожих наблюдений не хватает,
+свойство дерева усреднять проявляется сильнее, и в нескольких местах предсказание выходит ниже настоящей цены.
+Это указывает на то, что \textbf{\underline{в среднем и низком ценовом промежутке,}}
+\textbf{\underline{где обучающих}}
+\textbf{\underline{данных сравнительно много, ошибка выходит небольшой, тогда}}
+\textbf{\underline{как в промежутке очень дорогого жилья,}}
+\textbf{\underline{где наблюдений мало, сведений для}}
+\textbf{\underline{обучения не хватает и ошибка растёт}}.
+
+\vspace{0.65cm}
+
+В целом эти результаты показывают, что весь порядок работы, при котором \textbf{\textcolor{red}{удаляются переменные с большой долей пропусков, ключевые пропуски восполняются средним,
+качественные переменные переводятся в числа, а затем качество регрессионной модели оценивается числами}},
+даёт в задаче предсказания цен жилья \textbf{\underline{сразу и осмысленную объясняющую силу ( $R^2=0.75$ ), и понятный}}
+\textbf{\underline{уровень ошибки}} 
+\textbf{\underline{( MAE и RMSE )}}.
+В частности, MAE равна 29 070,50, и это численно показывает, что \textbf{\underline{средняя ошибка предсказания}}
+\textbf{\underline{составляет примерно 2,9 десятка тысяч долларов}},
+а то, что RMSE равна 43 424,47 и превышает MAE, указывает на \textbf{\underline{возможность сравнительно больших}}
+ошибок на отдельных участках ( RMSE чутка к большим ошибкам )}}.
+Кроме того, $R^2=0.75$ означает, что модель}}
+\textbf{\underline{объясняет примерно 75 \% изменения цен на проверочных данных, а}} 
+\textbf{\underline{оставшиеся 25 \%}}
+\textbf{\underline{изменения это то, что нынешняя модель}}
+\textbf{\underline{уловила недостаточно}}.
+Значит, эта модель обладает начальной предсказательной силой, но
+\textbf{\underline{по величине ошибки место}}
+\textbf{\underline{для дальнейшего уточнения ещё остаётся}}.
+
+
+\vspace{1cm}
+
+Этот документ подготовлен в формате \textbf{\textcolor{navy}{Quarto Markdown}}(.qmd), который позволяет объединять код \textcolor{pleft}{\textbf{Pyt}}\textcolor{pright}{\textbf{hon}} и текст документа в одном файле, и выведен в формате PDF.
+
+\pagebreak
+
+
+\vspace{0.55cm}
+
+
+\vspace{0.2cm}
