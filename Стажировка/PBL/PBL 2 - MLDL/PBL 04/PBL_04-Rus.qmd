@@ -1,0 +1,534 @@
+---
+title: ""
+subtitle: ""
+author: ""
+title-block-style: none
+
+format:
+  pdf:
+    pdf-engine: lualatex
+    mainfont: "Times New Roman"
+    titlepage: false
+    geometry:
+      - top=2.2cm
+    include-in-header:
+      text: |
+        \usepackage[most]{tcolorbox}
+        \usepackage{xcolor}
+        \definecolor{deepmint}{rgb}{0.35, 0.60, 0.55}   % тёмная мята (выделение разделов и пояснение правил)
+        \definecolor{pleft}{rgb}{0.18, 0.42, 0.69} % синий цвет Python
+        \definecolor{pright}{rgb}{1.0, 0.83, 0.0}  % жёлтый цвет Python
+        \definecolor{darkcyan}{rgb}{0, 0.55, 0.75} % тёмно-голубой цвет
+        \definecolor{navy}{rgb}{0.0, 0.0, 0.5}     % тёмно-синий цвет
+        \definecolor{ForestGreen}{rgb}{0.133, 0.545, 0.133} % настоящий зелёный
+        \usepackage{fontspec,graphicx}
+        \usepackage{luatexko} % пакет поддержки корейского языка
+        
+        \usepackage{fontspec,graphicx}
+        \setmainfont{Times New Roman}[Ligatures=TeX]
+        \setsansfont{Times New Roman}[Ligatures=TeX]
+        \setmonofont{Times New Roman}
+        
+        % настройка корейского шрифта, можно заменить на имя шрифта, установленного в macOS
+        % например, стандартный корейский шрифт Apple
+        \setmainhangulfont{Apple SD Gothic Neo}
+        \setsanshangulfont{Apple SD Gothic Neo}
+        \setmonohangulfont{Apple SD Gothic Neo}
+
+        \newcommand{\TitleStyle}{\fontsize{46pt}{54pt}\selectfont\bfseries}
+        \newcommand{\SubtitleStyle}{\fontsize{24pt}{30pt}\selectfont}
+        \newcommand{\AffilStyle}{\fontsize{25pt}{26pt}\selectfont}
+        \newcommand{\NameStyle}{\fontsize{33pt}{34pt}\selectfont\bfseries}
+
+        \newcommand{\TopPullUp}{-1.0em}
+        \newcommand{\TitleSubtitleSep}{12pt}
+        \newcommand{\SubtitleImageSep}{33pt}
+        \newcommand{\ImageAffilSep}{33pt}
+        \newcommand{\AffilLineSep}{10pt}
+
+    include-before-body:
+      text: |
+        % на титульной странице номер страницы скрыт
+        \pagenumbering{gobble}
+
+        \begin{titlepage}
+        \thispagestyle{empty}
+        \centering
+        \vspace*{\TopPullUp}
+
+        {\TitleStyle ML / DL  : PBL 04\par}
+        \vspace{\TitleSubtitleSep}
+        {\SubtitleStyle \fontsize{19pt}{22.8pt}\selectfont « Построение модели для поиска вредоносных обращений по журналу веб-сервера »\par}
+
+        \vspace{\SubtitleImageSep}
+        \begin{center}
+          \includegraphics[width=0.62\textwidth]{Python_Logo.png}
+        \end{center}
+
+        \vspace{\ImageAffilSep}
+        {\AffilStyle SK Shieldus\par}
+        \vspace{\AffilLineSep}
+        {\AffilStyle Rookies, 30-й набор \  (личный номер 14)\par}
+        \vspace{\AffilLineSep}
+        {\NameStyle Ким Джэ-Ук\par}
+
+        \vfill
+        \end{titlepage}
+
+        % с основного текста нумерация страниц начинается с 1
+        \clearpage
+        \pagenumbering{arabic}
+
+ipynb: true
+
+# для ссылок на источники -> bibliography: references.bib
+bibliography: references.bib
+csl: ieee.csl
+nocite: '@*'
+link-citations: true
+
+jupyter: python3
+toc: false
+# toc-depth: 2
+
+execute:   
+  echo: true
+  warning: false
+  message: false
+freeze: auto
+---
+
+\pagebreak
+
+\begin{center}
+{\Huge \textcolor{red}{Решение PBL 04}}
+\end{center}
+
+
+```{python}
+import re
+from datetime import datetime
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import precision_score, recall_score, f1_score
+```
+
+```{python}
+# загружаем данные и смотрим, как они устроены
+log_df = pd.read_csv("web_server_logs_2.csv")
+
+# бегло осматриваем таблицу
+print(f"В этой таблице число строк {log_df.shape[0]} и "
+      f"число столбцов {log_df.shape[1]}")
+print("-"*30)
+print("Выведем все столбцы, какие тут есть\n"
+      f"{', '.join(log_df.columns.values.astype(str)[:])}")
+print("-"*30)
+# посмотрим на первые четыре строки
+log_df.head(4)
+# в Quarto таблица DataFrame выводится через средства Jupyter,
+# поэтому она получается опрятной и без отдельной настройки HTML
+
+```
+
+```{python}
+# посмотрим, есть ли пропуски в каждом столбце
+print(f"{(s := log_df.isna().sum()).to_dict()}     = >    "
+      f"всего пропусков в этих данных {s.sum()}")
+```
+
+\vspace{0.15cm}
+
+\begin{center}
+  {\large\textbf{※ Запись +09:00 в конце \textcolor{ForestGreen}{timestamp}} означает, что это время опережает всемирное на девять часов, то есть это корейское время.}
+\end{center}
+
+```{python}
+from IPython.display import HTML
+
+# делаем таблицу из переменных, то есть столбцов, и их типов
+dtype_map = log_df.dtypes.astype(str)
+html_table = pd.DataFrame({"Feature": log_df.columns,
+                           "Тип": [dtype_map[c] for c in log_df.columns]})
+
+# добавляем столбец Index, нумерация идёт с единицы
+html_table.insert(0, "Index", range(1, len(html_table) + 1))
+
+# выводим таблицу в виде HTML
+HTML(html_table.to_html(index=False, border=1))
+```
+
+\begin{center}
+  {\large\textbf{\textcolor{red}{Какие переменные ( Feature ) разумно перевести в набор нулей и единиц ?} - прежде всего о том, как иначе определить \textcolor{ForestGreen}{вредоносное обращение} -}}
+\end{center}
+
+\noindent\hspace*{25pt} Прежде всего вспомним, что перевод в набор нулей и единиц, то есть однократное кодирование, это способ подготовки данных, при котором для каждого значения качественной переменной заводится свой столбец, и там ставится 1, если наблюдение относится к этому значению, и 0, если нет.\
+\noindent\hspace*{25pt} Далее, как же тогда в теме нашего задания « \textbf{построение модели для поиска {\textcolor{ForestGreen}{вредоносных обращений} по журналу веб-сервера}} » можно определить 
+'\textbf{\textcolor{ForestGreen}{вредоносное обращение}}' на основе того, что есть в данных?\
+\noindent\hspace*{25pt} Учитывая, что \textcolor{red}{\underline{данные ограниченны}}, мы определили '\textbf{\textcolor{ForestGreen}{вредоносное обращение}}' иначе, а именно как 
+\textbf{\textcolor{orange}{образ поведения, при котором раз за разом появляются необычные ошибочные ответы HTTP} \textcolor{ForestGreen}{в течение} \textcolor{purple}{короткого промежутка времени}}.
+Если говорить точнее, в этом наборе данных \textcolor{red}{\underline{\textcolor{red}{нет}}} ключевых для безопасности сведений, таких как адрес обращения URI, адрес клиента IP, способ обращения HTTP или User-Agent.
+Поэтому строго определить вредоносность отдельного обращения, опираясь только на три переменные набора, а это 
+\textbf{\textit{timestamp} ( = время, когда обращение дошло до сервера, то есть когда именно возникла эта запись журнала )} , 
+\textbf{\textit{status\_code} ( = код состояния HTTP, который сервер вернул на это обращение, он показывает, прошло ли обращение, было ли отклонено или случилась ошибка )} и 
+\textbf{\textit{size} ( = объём ответа, отправленного клиенту на это обращение )}, на деле почти \textcolor{red}{\underline{\textcolor{red}{невозможно}}}.
+Поэтому в этом задании мы решили понимать '\textbf{\textcolor{ForestGreen}{вредоносное обращение}}' не как отдельное событие, а как итог \underline{совместного поведения}, у которого есть \underline{протяжённость во времени}.\
+\noindent\hspace*{25pt} Эта 'протяжённость во времени' и означает в определении '\textbf{\textcolor{ForestGreen}{вредоносного обращения}}' 
+\textbf{\textcolor{purple}{короткий промежуток времени}}, а именно мы взяли \textbf{\textcolor{ForestGreen}{последние 30 секунд}}.
+А 'совместное поведение' означает в этом определении \textbf{\textcolor{orange}{образ поведения, при котором раз за разом появляются необычные ошибочные ответы HTTP}}, 
+и здесь мы взяли \textbf{\textcolor{ForestGreen}{случай, когда за последние 30 секунд от данной точки набирается три и более кода состояния 4xx}}.
+Такие случаи мы помечаем как вредоносные, исходя из того, что это ближе не к поведению обычного пользователя, а к \textbf{самодействующим необычным обращениям вроде поиска ресурсов, перебора путей, повторных попыток доступа или попыток обойти проверку доступа}.
+Всё это тесно связано с простейшим видом поиска угроз по поведению, который применяют на деле, а как заметный пример самодействующих необычных попыток мы держим в уме \textbf{\textcolor{blue}{нападение перебором}}.
+
+\vspace{0.3cm}
+
+\begin{tcolorbox}[colback=cyan!20!green!15!white, colframe=teal!70!black, title= Нападение перебором ( Brute force )]
+    \textbf{\textcolor{blue}{Нападение, при котором самодействующим образом одно за другим подставляются все возможные пароли или проверочные значения, и так до тех пор, пока не найдётся подходящее}}
+\end{tcolorbox}
+
+
+
+
+```{python}
+# смотрим неповторяющиеся значения status_code, то есть быстро
+# проверяем, какие коды состояния тут вообще есть
+print("Неповторяющиеся значения в столбце status_code ",
+      ", ".join(map(str,
+      sorted(log_df["status_code"].dropna().unique().tolist()))))
+```
+
+\begin{tcolorbox}[colback=brown!16!yellow!10!white, colframe=orange!80!black, title=Значение status\_code]
+
+    \textbf{-}  200 ( OK ) значит, что обращение прошло как надо и сервер без затруднений вернул то, что просили
+\\
+
+    \textbf{-}  302 Found ( Redirect ) значит, что запрошенное на время переехало в другое место. Обозреватель сам переходит по новому адресу, который указал сервер
+\\
+    
+    \textbf{-}  \textbf{\textcolor{red}{403 Forbidden}} значит, что сервер понял обращение, но отказал, ведь права доступа отсутствуют. Так бывает, когда нет проверки доступа, когда прав не хватает или когда обращение закрыто правилами безопасности
+\\
+    
+    \textbf{-}  \textbf{\textcolor{red}{404 Not Found}} значит, что запрошенного на сервере ( страницы, файла, пути ) не существует. Так бывает при неверном URL или при обращении к удалённой странице
+\end{tcolorbox}
+
+\vspace{1.1cm}
+
+\pagebreak
+
+```{python}
+# создаём новую переменную, а именно достаём час обращения (hour)
+# и добавляем его отдельным столбцом
+log_df["timestamp"] = pd.to_datetime(log_df["timestamp"], errors="coerce")
+
+# убеждаемся, что timestamp записан строго по порядку времени,
+# и это важно для дальнейшей работы
+bad = log_df["timestamp"].diff().dt.total_seconds() < 0
+print(f"Сколько раз время идёт вспять {int(bad.sum())}")
+print(""*777)
+print("Данные timestamp расставлены по порядку времени"
+      if int(bad.sum()) == 0 else "Данные не расставлены по порядку времени")
+```
+
+\vspace{0.75cm}
+
+\begin{center}
+  {\large\textbf{\textcolor{brown}{Проверить, расставлен ли timestamp по порядку появления записей, очень важно.}}}
+\end{center}
+
+Дело в том, что через \textbf{\textit{diff() < 0}} в коде мы находим места, где время возвращается назад по сравнению с предыдущей строкой, 
+и тем самым \textbf{\textcolor{brown}{ручаемся, что применяемые дальше действия в окне по времени, такие как \textit{rolling("30s")}, верно отражают настоящий ход времени}}. Если этот порядок нарушен, 
+само понятие «последние 30 секунд» перестаёт существовать, число накопленных ошибок и создание метки искажаются, а вместе с этим рушится и надёжность обучения модели.
+
+
+\pagebreak
+
+```{python}
+# достаём час из timestamp, чтобы затем перевести время суток
+# в набор нулей и единиц и подать как переменную
+log_df["hour"] = log_df["timestamp"].dt.hour
+
+# вредоносное обращение ( label ) это "три и более 4xx
+# за последние 30 секунд"
+# ставим признак ошибки по тому, больше ли код состояния HTTP,
+# чем 400
+log_df["is_error"] = (log_df["status_code"] >= 400).astype(int)
+
+# считаем число накопленных ошибок за 30 секунд, то есть в окне
+# по времени
+rolling_err_30s = (log_df.set_index("timestamp")["is_error"]
+                   .rolling("30s").sum().reset_index(drop=True))
+
+# присоединяем это к таблице как столбец
+log_df["err_cnt_30s"] = rolling_err_30s.values
+
+# создаём метку вредоносного обращения, а именно при трёх и более
+# ошибках за последние 30 секунд это вредоносное ( = 1 ),
+# иначе обычное ( = 0 )
+log_df["label"] = (log_df["err_cnt_30s"] >= 3).astype(int)
+```
+
+```{python}
+# берём от size логарифм, причём через log1p, ведь там может быть ноль
+log_df["size_log"] = np.log1p(pd.to_numeric(log_df["size"], errors="coerce"))
+```
+
+\begin{center}
+  {\large\textbf{Перевод в набор нулей и единиц ( \textcolor{purple}{однократное кодирование} ) выполнен с оглядкой на \textcolor{red}{утечку ответа ( Target leakage )}.}}
+\end{center}
+
+Переменные \textbf{\textit{is\_error}} ,  \textbf{\textit{status\_code}} и \textbf{\textit{err\_cnt\_30s}} 
+прямо участвуют в создании метки, и если включить их в число входных переменных, может возникнуть \textbf{\textcolor{red}{утечка ответа ( Target leakage )}}.
+Поэтому вместо них мы взяли \textbf{\textit{hour}} и \textbf{\textit{size\_log}}, разбили их на промежутки в согласии со смыслом задания ( \textbf{\textit{hour\_bin}} и \textbf{\textit{size\_bin}} ) 
+и тем самым сделали качественными, а затем перевели их в набор нулей и единиц и использовали как входные переменные, чем и выполнили требование о кодировании и о приведении к одному масштабу.
+
+```{python}
+## переводим в набор нулей и единиц
+
+# hour -> hour_bin, то есть разбиваем время суток
+# на осмысленные промежутки
+# 0 - 5 ночь, 6 - 11 утро, 12 - 17 день, 18 - 23 вечер
+log_df["hour_bin"] = pd.cut(log_df["hour"],bins=[-1, 5, 11, 17, 23],
+                            labels=["night", "morning", "afternoon", "evening"])
+
+# size_log -> size_bin, то есть делим на три промежутка
+# по распределению самих данных, то есть по квантилям
+log_df["size_bin"] = pd.qcut(log_df["size_log"],q=3,
+                             labels=["small", "medium", "large"])
+
+# перевод в набор нулей и единиц, то есть качественная переменная
+# становится столбцами из 0 и 1
+hour_bin_ohe = pd.get_dummies(log_df["hour_bin"], prefix="hour", dtype=int)
+size_bin_ohe = pd.get_dummies(log_df["size_bin"], prefix="size", dtype=int)
+
+# готовим данные для обучения и отбираем главные переменные,
+# где hour это время суток обращения,
+# а size_log это логарифм объёма ответа
+feature_df = pd.concat([log_df[["hour", "size_log"]], hour_bin_ohe,
+                        size_bin_ohe], axis=1)
+```
+
+```{python}
+# делаем таблицу про переменные, то есть про столбцы
+dtype_map = feature_df.dtypes.astype(str)
+html_table = pd.DataFrame({"Feature": feature_df.columns,
+                           "Тип": [dtype_map[c] for c in feature_df.columns]})
+
+# добавляем столбец Index, нумерация идёт с единицы
+html_table.insert(0, "Index", range(1, len(html_table) + 1))
+
+# выводим таблицу в виде HTML
+HTML(html_table.to_html(index=False, border=1))
+```
+
+\textbf{\underline{Переменные в таблице выше}} созданы для того, чтобы подать модели сведения о времени и об объёме ответа из исходного журнала. 
+Сначала \textbf{\textcolor{purple}{hour}} это числовая переменная, куда из timestamp взят только час обращения ( от 0 до 23 ), а \textbf{\textcolor{ForestGreen}{size\_log}} это непрерывная переменная, где size переведён в число, а затем взят его логарифм через 
+log1p, чтобы можно было работать и с нулём. Далее \textbf{\textcolor{navy}{hour\_night}} , 
+\textbf{\textcolor{navy}{hour\_morning}} , 
+\textbf{\textcolor{navy}{hour\_afternoon}} и 
+\textbf{\textcolor{navy}{hour\_evening}} это переменные из нулей и единиц, полученные так, что hour разбит на четыре промежутка времени суток, а именно 0 – 5 ( ночь ) , 
+6 – 11 ( утро ) , 12 – 17 ( день ) , 18 – 23 ( вечер ) , 
+и затем эти промежутки переведены в набор нулей и единиц , 
+а \textbf{\textcolor{orange}{size\_small}} , 
+\textbf{\textcolor{orange}{size\_medium}} и 
+\textbf{\textcolor{orange}{size\_large}} это переменные из нулей и единиц, полученные так, что 
+распределение \textbf{\textcolor{ForestGreen}{size\_log}} поделено по квантилям на 
+три равные части ( малый, средний, большой ), и эти промежутки тоже переведены в набор нулей и единиц.
+
+```{python}
+# выбираем метку
+label_series = log_df["label"]
+
+# делим данные на обучающую и проверочную части ( 70% и 30% )
+X_train, X_test, y_train, y_test = train_test_split(
+    feature_df,
+    label_series,
+    test_size=0.3,
+    random_state=42,
+    stratify=label_series
+)
+
+# обучаем модель Logistic Regression
+clf = LogisticRegression(max_iter=1000)
+clf.fit(X_train, y_train)
+
+# получаем предсказания на проверочных данных
+y_pred = clf.predict(X_test)
+
+# считаем и выводим оценки качества
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred, zero_division=0)
+recall = recall_score(y_test, y_pred, zero_division=0)
+f1 = f1_score(y_test, y_pred, zero_division=0)
+
+print(f"Доля верных ответов ( Accuracy ) {accuracy:.4f}")
+print(" "*30)
+print(f"Точность ( Precision ) {precision:.4f}")
+print(" "*30)
+print(f"Полнота ( Recall ) {recall:.4f}")
+print(" "*30)
+print(f"F1 - Score {f1:.4f}")
+```
+
+
+
+
+
+\pagebreak
+
+\begin{center}
+      {\huge \textcolor{red}{Толкование результатов} и \textcolor{blue}{их значение}}
+\end{center}
+
+\vspace{0.3cm}
+
+\textbf{Если учитывать смысл этого задания, а именно « \textcolor{blue}{на основе времени суток ( hour ) и объёма ответа ( size ) из журнала веб-сервера подготовить данные и применить логистическую регрессию 
+( Logistic Regression ) для разделения вредоносных обращений ( label ), причём}} \textbf{\textcolor{brown}{подобающе}} \textbf{\textcolor{blue}{и}} \textbf{\textcolor{brown}{в условиях ограниченного набора данных}}\textbf{\textcolor{blue}{, а затем проверить качество} » , 
+то рассмотреть приведённые ниже более подробные \textcolor{red}{толкование результатов} и \textcolor{blue}{их значение} тоже будет осмысленно.}
+
+\vspace{0.3cm}
+
+(1) Прежде всего, из timestamp в данном файле csv было получено \textbf{время суток обращения ( \textbf{\textcolor{purple}{hour}} )}, а случаи, \textbf{когда за последние 30 секунд набирается три и более кода состояния 4xx},
+были помечены как \textbf{\textcolor{ForestGreen}{вредоносное обращение} ( label = 1 )}. 
+Для этого по тому, больше ли \textbf{\textit{status\_code}} чем 400, был создан \textbf{признак ошибки ( \textit{is\_error} )}, 
+затем в окне по времени длиной 30 секунд, отсчитываемом по timestamp, было посчитано \textbf{число накопленных ошибок ( \textit{err\_cnt\_30s} )}, 
+и метка была создана по условию \textbf{\textit{err\_cnt\_30s $\ge$ 3}}. 
+Такой способ разметки можно считать попыткой уловить \textbf{\textcolor{ForestGreen}{вредоносное обращение}} через 
+\textbf{необычное поведение ( Behavior-based anomalous activity pattern )}, а именно через \textbf{повторное появление неудачных ответов ( 4xx ) в течение короткого промежутка времени}, 
+в таких условиях, как в нашем задании, где по одному обращению судить о нападении нельзя из-за ограниченности данных. 
+Кроме того, это можно толковать как замысел, при котором, пусть и ограниченно, держится в уме \textbf{\textcolor{blue}{нападение перебором}}, то есть \textbf{способ нападения, при котором проверочные значения ( пароли и подобное ) подставляются самодействующим образом много раз подряд, 
+из-за чего возникает множество неудачных ответов}. При этом с оглядкой на утечку ответа ( Target leakage ) переменные 
+\textbf{\textit{is\_error}} , \textbf{\textit{status\_code}} и \textbf{\textit{err\_cnt\_30s}} были исключены из входных, а на основе \textbf{\textcolor{purple}{hour}} 
+и переведённого в число \textbf{\textcolor{orange}{size}}, то есть \textbf{size\_log}, были созданы переменная с промежутками времени суток 
+( \textbf{\textcolor{navy}{hour\_bin}} ) и переменная с промежутками объёма ответа ( \textbf{\textcolor{orange}{size\_bin}} ), которые затем были 
+\textbf{переведены в набор нулей и единиц} и поданы модели как входные переменные. Затем данные были поделены на обучающую и проверочную части ( 70 \% и 30 \% ). 
+Значение такого устройства опыта в том, что \textbf{\textcolor{brown}{в условиях ограниченного набора данных}}\textbf{\textcolor{blue}{ он позволяет получить осмысленный итог, сохраняя при этом}} 
+\textcolor{red}{\underline{\textcolor{blue}{\textbf{подобающий}}}}\textbf{\textcolor{blue}{ порядок работы в машинном обучении и тщательно предупреждая утечку ответа ( Target leakage )}}.
+
+\vspace{0.3cm}
+
+(2) Показатели качества этой модели ( Accuracy, Precision , \textbf{\textcolor{darkcyan}{Recall}} , F1-score ) численно показывают, \textbf{насколько предсказания совпадают с настоящими метками на проверочных данных}.
+А именно, Accuracy это доля верных ответов среди всех предсказаний, Precision это доля по-настоящему вредоносных среди тех, что модель сочла вредоносными ( = 1 ), Recall это доля тех по-настоящему вредоносных ( = 1 ),
+которые модель нашла, а F1-score показывает равновесие между Precision и Recall. Если посмотреть на полученные значения, Accuracy равна \textbf{\textcolor{red}{0.5667}}, то есть в целом
+\textbf{\textcolor{red}{доля верных ответов не такая уж высокая}}, а Precision равна \textbf{\textcolor{red}{0.5862}}, и это указывает, что 
+среди предсказанных вредоносными ( = 1 ) немалая часть может оказаться обычными ( = 0 ).
+Напротив, \textbf{\textcolor{darkcyan}{Recall}} равна \textbf{\textcolor{red}{0.9444}}, то есть очень высока, а значит,
+предсказания смещены в сторону того, чтобы не упустить настоящие вредоносные обращения ( = 1 ) и поймать почти все. 
+То, что \textbf{\textcolor{darkcyan}{Recall}} выходит заметно выше остальных показателей, объяснялось \textbf{\underline{в части про машинное обучение в ходе нашего обучения}} 
+на примере того, как задача разделения применяется к распознаванию рака.
+В частности, отмечалось, что высокая \textbf{\textcolor{darkcyan}{Recall}} полезна там, где важно не упустить больного.
+Схожим образом и в этом опыте, с той точки зрения, что \textbf{\textcolor{blue}{важно не упустить вредоносное обращение}}, 
+пусть работа и велась в довольно \textbf{\textcolor{brown}{ограниченных условиях по данным}}, \textbf{\textcolor{blue}{появляется возможность толковать вид этих показателей благоприятно}}.
+
+\pagebreak
+
+\begin{center}
+      {\huge \textcolor{red}{Разбор ограничений} и \textcolor{ForestGreen}{предложения по улучшению}}
+\end{center}
+
+\vspace{0.3cm}
+
+\textbf{Если учитывать смысл этого задания, а именно « \textcolor{blue}{на основе времени суток ( hour ) и объёма ответа ( size ) из журнала веб-сервера подготовить данные и применить логистическую регрессию 
+( Logistic Regression ) для разделения вредоносных обращений ( label ), причём}} \textbf{\textcolor{brown}{подобающе}} \textbf{\textcolor{blue}{и}} \textbf{\textcolor{brown}{в условиях ограниченного набора данных}}\textbf{\textcolor{blue}{, а затем проверить качество} » , 
+то приведённые ниже более подробные \textcolor{red}{разбор ограничений} и \textcolor{ForestGreen}{предложения по улучшению} тоже оказываются осмысленными.}
+
+\vspace{0.3cm}
+
+(1) Такое сочетание, при котором \textbf{\textcolor{darkcyan}{Recall}} заметно выше прочих показателей, 
+приводит к толкованию, что ложных срабатываний ( обычное сочтено вредоносным ) скорее всего было довольно много. 
+В итоге F1-score равна \textbf{\textcolor{red}{0.7234}}, и это одной величиной описывает склад поиска так, что
+«вредоносных обращений находится много ( впереди идёт \textbf{\textcolor{darkcyan}{Recall}} ), но точностью ( Precision ) при этом пожертвовали». Поэтому точнее будет толковать этот итог так, что 
+\textbf{при нынешнем определении метки ( три и более 4xx за последние 30 секунд )}
+сочетание переменных, построенных на времени суток ( \textbf{\textcolor{purple}{hour}} ) и объёме ответа ( \textbf{\textcolor{orange}{size}} ), работало в сторону наименьшего числа пропусков вредоносного, 
+но \textbf{\textcolor{red}{в части уменьшения ложных срабатываний оказалось ограниченным}}. Такое \textbf{\textcolor{red}{ограничение}} по сути 
+\textbf{\textcolor{brown}{вытекает из того, что данный файл csv устроен просто и состоит лишь из \textit{timestamp} , \textit{status\_code} и \textit{size}}}.
+
+\vspace{0.3cm}
+
+(2) Кроме того, \textbf{\textcolor{ForestGreen}{метка}} ( \textbf{\textcolor{ForestGreen}{label}} ) в этом опыте определена правилом подсчёта по времени, а именно 
+\textbf{через число накопленных ошибок за последние 30 секунд}, и есть \textbf{\textcolor{red}{ограничение в том, что входными переменными служат} 
+\textcolor{blue}{\textbf{только}} \textbf{\textcolor{red}{промежутки hour и size\_log, переведённые в набор нулей и единиц}}}. То есть у модели есть  
+основное \textbf{\textcolor{red}{ограничение}}, идущее от ограниченности набора данных, ведь она \textbf{\textcolor{red}{не может учесть}} другие ключевые для безопасности входные переменные, 
+без которых поиск \textbf{\textcolor{ForestGreen}{вредоносных обращений}} обойтись не может 
+( адрес обращения URI, адрес клиента IP , способ обращения HTTP , User - Agent и прочее ). 
+Иначе говоря, эта модель угадывает вредоносный образ поведения лишь по времени суток и по распределению объёма ответа. 
+Поэтому даже при высоких показателях правильнее толковать это не как «нападение опознано напрямую», а как вывод о том, что 
+\textbf{\textcolor{purple}{время суток обращения} }**(** \textbf{\textcolor{purple}{hour}} **) и** \textbf{\textcolor{orange}{объём ответа}} **(** \textbf{\textcolor{orange}{size}} 
+**) статистически связаны с** \textbf{\textcolor{ForestGreen}{вредоносными обращениями}}. 
+И всё же есть смысл в том, что \textbf{\textcolor{brown}{в условиях ограниченного набора данных}} меткой удалось довольно осмысленно приблизить тот образ поведения, 
+которого ждёшь от самодействующих повторных попыток вроде \textbf{\textcolor{blue}{перебора}}, а именно \textbf{\textcolor{ForestGreen}{накопление неудачных ответов за короткое время}}. 
+То есть значение этой работы в том, что \textbf{способ мышления при поиске угроз по поведению} в стеснённых условиях был \textcolor{blue}{\underline{\textcolor{red}{подобающе}}} применён к модели машинного обучения. 
+Наконец, можно подытожить, что \textbf{\textcolor{ForestGreen}{для того, чтобы ещё сильнее усилить переносимость и качество модели в согласии со смыслом задания, стоит дополнительно добыть ключевые для безопасности сведения, такие как адрес обращения URI, адрес клиента IP, способ обращения HTTP и User - Agent, 
+и в дальнейших разборах и работах положить в основу разметки и построения переменных отдельные признаки вредоносности 
+( например, повторные неудачи проверки доступа, шквал обращений с одного IP, перебор определённых путей, образ доступа )}}.
+По этому вопросу мы опирались на источник [@Salama2011WebServerLogs] \textbf{\textit{Web Server Logs Preprocessing for Web Intrusion Detection}}.
+\vspace{0.7cm}
+
+\pagebreak
+
+\pagebreak
+
+\begin{center}
+      {\LARGE Главное, что пришлось обдумать, это \textcolor{red}{предупреждение утечки ответа ( Target leakage )} и \textcolor{ForestGreen}{определение вредоносного обращения}}
+\end{center}
+
+\vspace{0.25cm}
+
+\textbf{Держа в уме точное название задания « \textcolor{blue}{построение модели для поиска вредоносных обращений по журналу веб-сервера} » , 
+при работе над ним особенно внимательно пришлось отнестись к \textcolor{red}{утечке ответа ( Target leakage )} и к определению \textcolor{ForestGreen}{вредоносного обращения}.}
+
+
+\begin{center}
+  {\large\textbf{Первое, что пришлось обдумать, это \textcolor{red}{предупреждение утечки ответа ( Target leakage )}, а именно стоит ли переводить в набор нулей и единиц переменную \textit{status\_code}}}
+\end{center}
+
+\noindent\hspace*{25pt} Учитывая тему задания « построение модели для поиска вредоносных обращений по журналу веб-сервера » и замысел составителя,
+\textcolor{purple}{\underline{\textcolor{purple}{поначалу мы предварительно}}} решили, что не переменную \textbf{\textit{timestamp}} , 
+а переменную \textbf{\textit{status\_code}} стоит превратить в качественную ( \textbf{\textit{status\_class}} ), создав её заново, и уже её перевести в набор нулей и единиц. Так вышло потому, что \textbf{\textit{timestamp}} по своему смыслу это, по сути, \underline{непрерывные сведения о времени}, 
+а значит, черты качественной переменной у него слабые.
+И напротив, у \textbf{\textit{status\_code}} по самому стандарту HTTP изначально есть строение смысла, которое хорошо ложится на качественную переменную.\
+\noindent\hspace*{25pt} Поэтому ради перевода в набор нулей и единиц переменная \textbf{\textit{status\_code}} была превращена в \textbf{\textit{status\_class\_2}} или
+\textbf{\textit{status\_class\_3}} или \textbf{\textit{status\_class\_4}}.
+Так сделано потому, что по стандартному смыслу кодов состояния HTTP коды, начинающиеся с 2 , 3 , 4 и 5 ( кодов из пятой сотни в этом наборе данных нет, но опишем их ради знания области ), несут разный смысл. 
+Если говорить точнее, коды, начинающиеся с 2, такие как 200, 201, 204, означают, что обращение прошло как надо, поэтому 2xx можно собрать в разряд «успех».
+Далее, коды, начинающиеся с 3, такие как 301, 302, 304, означают, что запрошенное переехало в другое место или что следует взять сохранённое, 
+и там часто пользователя отправляют на другой URL, поэтому 3xx можно отнести к разряду «перенаправление».
+Коды, начинающиеся с 4, такие как 400 , 403 , 404, можно отнести к разряду «ошибка клиента», ведь либо с самим обращением что-то не так, либо нет прав ( 403 ) , 
+либо запрошено то, чего не существует ( 404 ).
+Наконец, коды, начинающиеся с 5, такие как 500, 502, 503, можно отнести к разряду «ошибка сервера», ведь это внутренние затруднения сервера, недоступность шлюза или службы, то есть 
+неудача обработки на стороне сервера.\
+\noindent\hspace*{25pt} По этим на вид ( ? ) убедительным причинам
+переменная \textbf{\textit{status\_code}} была превращена в качественную ( \textbf{\textit{status\_class}} ), создана заново и переведена в набор нулей и единиц, и в итоге 
+\textbf{\textcolor{red}{Accuracy, Precision, Recall и F1 все вышли равными 1, то есть получился неудачный итог, при котором есть подозрение на утечку ответа ( Target Leakage )}}. 
+Так вышло потому, что превращение \textbf{\textit{status\_code}} в качественную переменную ( \textbf{\textit{status\_class}} ) и перевод её в набор нулей и единиц 
+в итоге дали модели в качестве входной переменной ( feature ) сведения, которые прямо или почти прямо намекают на ответ (label).
+То есть с точки зрения модели складывается такое устройство, при котором сложный образ учить не нужно, ведь достаточно взглянуть на \textbf{\textit{status\_class}}, чтобы 
+почти безошибочно угадать \textbf{\textcolor{ForestGreen}{label}} \.\.\.
+
+\begin{center}
+  {\large\textbf{Второе, что пришлось обдумать, это как подобающе определить \textcolor{ForestGreen}{вредоносное обращение} при таких ограниченных данных}}
+\end{center}
+
+\noindent\hspace*{25pt} Учитывая тему задания « построение модели для поиска вредоносных обращений по журналу веб-сервера » и замысел составителя,
+сводить определение \textbf{\textcolor{ForestGreen}{вредоносного обращения}} просто к появлению кодов состояния HTTP из четвёртой сотни ( а именно, если опираться на данный набор данных, к 403 и 404 , 
+подробнее о каждом из них уже сказано вверху страницы 3 ) \textcolor{red}{\underline{\textcolor{red}{неуместно}}}.
+Так происходит потому, что такие ошибки нередко возникают и при обычных намерениях, в обычных условиях работы, и это дело естественное.
+Поэтому, внимательно вглядевшись в смысл задания, мы определили вредоносное обращение не просто через коды состояния HTTP из четвёртой сотни, а как
+\textbf{\textcolor{orange}{образ поведения, при котором раз за разом появляются необычные ошибочные ответы HTTP} \textcolor{ForestGreen}{в течение} \textcolor{purple}{короткого промежутка времени}}, и на этом определении построили
+весь опыт. Прежде всего мы сочли, что в этих \textbf{\textcolor{brown}{ограниченных условиях по данным}} 
+это самый действенный способ распорядиться переменной timestamp, и уверились, что именно ради этого она и была дана. 
+Если память нас не подводит, \textbf{\underline{в ходе нашего обучения}} мельком заходила речь о разделении \textbf{\textcolor{ForestGreen}{вредоносных обращений}} по частым обращениям в определённое время суток, 
+и это тоже во многом помогло при работе над заданием.
+
+\vspace{2cm}
+
+Этот документ подготовлен на основе формата \textbf{\textcolor{navy}{Quarto Markdown}} ( \textbf{\textcolor{navy}{.qmd}} ), который позволяет объединять код \textcolor{pleft}{\textbf{Pyt}}\textcolor{pright}{\textbf{hon}} и текст документа в одном файле, и выведен в формате PDF.
+
+
+\pagebreak
+
+\begin{center}
+  {\Huge \textbf{Использованные материалы}}
+\end{center}
